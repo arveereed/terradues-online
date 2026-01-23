@@ -6,13 +6,13 @@ import { initializeApp } from "firebase/app";
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyBKPYI0xXcqCyWKcSVRoaqXD8fRiZEVfEM",
-  authDomain: "terradues-online.firebaseapp.com",
-  projectId: "terradues-online",
-  storageBucket: "terradues-online.firebasestorage.app",
-  messagingSenderId: "849867015213",
-  appId: "1:849867015213:web:9e4de9b61e5131ae9da4a4",
-  measurementId: "G-QL0T68CG5E",
+  apiKey: import.meta.env.FIREBASE_API_KEY,
+  authDomain: import.meta.env.FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.MESSAGING_SENDER_ID,
+  appId: import.meta.env.FIREBASE_APP_ID,
+  measurementId: import.meta.env.FIREBASE_MEASUREMENT_ID,
 };
 
 // Initialize Firebase
