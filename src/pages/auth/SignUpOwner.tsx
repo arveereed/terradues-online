@@ -664,10 +664,14 @@ export default function SignUp() {
           {/* Submit */}
           <div className="md:col-span-2 mt-4">
             <button
-              disabled={notAgree}
+              disabled={notAgree || isLoading}
               className={`w-full cursor-pointer disabled:cursor-default disabled:bg-gray-400 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-semibold`}
             >
-              Register
+              {isLoading ? (
+                <span className="loading loading-bars loading-xs"></span>
+              ) : (
+                "Register"
+              )}
             </button>
             {error && (
               <div className="flex items-center justify-between  bg-red-500 text-white p-3 rounded-lg my-4">
