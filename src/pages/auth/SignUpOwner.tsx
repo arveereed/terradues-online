@@ -141,10 +141,9 @@ export default function SignUp() {
     e.preventDefault();
 
     if (!isLoaded) return;
-    setIsLoading(true);
 
     if (!validateForm()) return;
-    console.log("validation passed");
+    setIsLoading(true);
 
     // Start sign-up process using email and password provided
     try {
@@ -212,8 +211,7 @@ export default function SignUp() {
           picture: form.picture,
           document: form.document, // temporary
         };
-        const id = await addUser(userData);
-        console.log("User saved, doc id:", id);
+        await addUser(userData);
 
         navigate("/");
         setIsLoading(false);
