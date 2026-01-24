@@ -2,7 +2,8 @@ import { useSignUp } from "@clerk/clerk-react";
 import { useRef, useState } from "react";
 import type { UserDataSignUpType } from "../../types";
 import Icon from "../../assets/splashImage.png";
-import { Eye, EyeOff, Image } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, Image, XCircle } from "lucide-react";
+import VerifyEmailUI from "../../components/VerifyEmailUI";
 
 interface FormData {
   firstName: string;
@@ -130,7 +131,6 @@ export default function SignUp() {
       errors.document = "Document is required";
     } */
 
-    console.log(errors);
     setErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -146,7 +146,7 @@ export default function SignUp() {
     console.log("validation passed");
 
     // Start sign-up process using email and password provided
-    /*   try {
+    try {
       await signUp.create({
         emailAddress: form.email,
         password: form.password,
@@ -165,10 +165,6 @@ export default function SignUp() {
           forRent: form.forRent,
           picture: form.picture,
           document: form.document,
-
-          // derived fields
-          fullName: `${form.firstName} ${form.lastName}`,
-          address: `Phase ${form.phase}, Block ${form.block}, Lot ${form.lot}`,
         },
       });
 
@@ -196,7 +192,7 @@ export default function SignUp() {
       }
       setIsLoading(false);
       // console.error(JSON.stringify(err, null, 2));
-    } */
+    }
   };
 
   // Handle submission of verification form
@@ -215,11 +211,22 @@ export default function SignUp() {
       if (signUpAttempt.status === "complete") {
         await setActive({ session: signUpAttempt.createdSessionId });
 
-        /*  const userData: UserDataSignUpType = {
-          fullName: signUpAttempt.unsafeMetadata.fullName as string,
-          address: signUpAttempt.unsafeMetadata.address as string,
+        const userData: UserDataSignUpType = {
           email: signUpAttempt.emailAddress as string,
-        }; */
+          firstName: signUpAttempt.unsafeMetadata.firstName as string,
+          lastName: signUpAttempt.unsafeMetadata.lastName as string,
+          middleName: signUpAttempt.unsafeMetadata.middleName as string,
+          contactNumber: signUpAttempt.unsafeMetadata.contactNumber as string,
+          gender: signUpAttempt.unsafeMetadata.gender as string,
+          phase: signUpAttempt.unsafeMetadata.phase as string,
+          block: signUpAttempt.unsafeMetadata.block as string,
+          lot: signUpAttempt.unsafeMetadata.lot as string,
+          familyMembers: signUpAttempt.unsafeMetadata.familyMembers as string,
+          occupied: signUpAttempt.unsafeMetadata.occupied as boolean,
+          forRent: signUpAttempt.unsafeMetadata.forRent as boolean,
+          picture: signUpAttempt.unsafeMetadata.picture as string,
+          document: signUpAttempt.unsafeMetadata.document as null, // temporary
+        };
         // addUser(userData);
 
         // router.replace("/");
@@ -246,6 +253,20 @@ export default function SignUp() {
       // console.error(JSON.stringify(err, null, 2));
     }
   };
+
+  if (pendingVerification) {
+    return (
+      <VerifyEmailUI
+        pendingVerification={pendingVerification}
+        isLoading={isLoading}
+        error={error}
+        setError={setError}
+        code={code}
+        setCode={setCode}
+        onVerifyPress={onVerifyPress}
+      />
+    );
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -664,6 +685,17 @@ export default function SignUp() {
             >
               Register
             </button>
+            {error && (
+              <div className="flex items-center justify-between  bg-red-500 text-white p-3 rounded-lg my-4">
+                <div className="flex items-center gap-2">
+                  <AlertCircle size={20} />
+                  <p>{error}</p>
+                </div>
+                <button className="cursor-pointer" onClick={() => setError("")}>
+                  <XCircle size={20} />
+                </button>
+              </div>
+            )}
           </div>
         </form>
       </div>

@@ -1,5 +1,5 @@
 import { Route, Routes } from "react-router-dom";
-import OnboardScreen from "./pages/OnboardScreen";
+import OnboardScreen from "./pages/auth/OnboardScreen";
 import SignIn from "./pages/auth/SignIn";
 import ResidencySelection from "./pages/auth/ResidencySelection";
 import SignUpOwner from "./pages/auth/SignUpOwner";
