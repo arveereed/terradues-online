@@ -14,6 +14,8 @@ function App() {
       <Route path="/residency-type=homeowner" element={<SignUpOwner />} />
       <Route path="/residency-type=renter" element={<SignUpRenter />} />
       <Route path="/residency-type" element={<ResidencySelection />} />
+
+      {/* User Page */}
     </Routes>
   );
 }

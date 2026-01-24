@@ -1,4 +1,4 @@
-import Icon from "../assets/splashImage.png";
+import Icon from "../../assets/splashImage.png";
 import { Link, useNavigate } from "react-router-dom";
 
 export default function OnboardScreen() {

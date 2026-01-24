@@ -4,6 +4,8 @@ import type { UserDataSignUpType } from "../../types";
 import Icon from "../../assets/splashImage.png";
 import { AlertCircle, Eye, EyeOff, Image, XCircle } from "lucide-react";
 import VerifyEmailUI from "../../components/VerifyEmailUI";
+import { addUser } from "../../features/auth/services/auth.service";
+import { useNavigate } from "react-router-dom";
 
 interface FormData {
   firstName: string;
@@ -53,17 +55,16 @@ export default function SignUp() {
   const pictureInputRef = useRef<HTMLInputElement | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
   const [notAgree, setNotAgree] = useState(true);
 
   const { isLoaded, signUp, setActive } = useSignUp();
-
   const [isLoading, setIsLoading] = useState<boolean>(false);
-
   const [pendingVerification, setPendingVerification] =
     useState<boolean>(false);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string>("");
+
+  const navigate = useNavigate();
 
   const validateForm = () => {
     const errors: FormErrors = {};
@@ -150,22 +151,6 @@ export default function SignUp() {
       await signUp.create({
         emailAddress: form.email,
         password: form.password,
-        unsafeMetadata: {
-          firstName: form.firstName,
-          middleName: form.middleName,
-          lastName: form.lastName,
-          contactNumber: form.contactNumber,
-          email: form.email,
-          gender: form.gender,
-          phase: form.phase,
-          block: form.block,
-          lot: form.lot,
-          familyMembers: form.familyMembers,
-          occupied: form.occupied,
-          forRent: form.forRent,
-          picture: form.picture,
-          document: form.document,
-        },
       });
 
       // Send user an email with verification code
@@ -191,7 +176,7 @@ export default function SignUp() {
         setError("Please use a different password.");
       }
       setIsLoading(false);
-      // console.error(JSON.stringify(err, null, 2));
+      console.log(JSON.stringify(err, null, 2));
     }
   };
 
@@ -213,23 +198,24 @@ export default function SignUp() {
 
         const userData: UserDataSignUpType = {
           email: signUpAttempt.emailAddress as string,
-          firstName: signUpAttempt.unsafeMetadata.firstName as string,
-          lastName: signUpAttempt.unsafeMetadata.lastName as string,
-          middleName: signUpAttempt.unsafeMetadata.middleName as string,
-          contactNumber: signUpAttempt.unsafeMetadata.contactNumber as string,
-          gender: signUpAttempt.unsafeMetadata.gender as string,
-          phase: signUpAttempt.unsafeMetadata.phase as string,
-          block: signUpAttempt.unsafeMetadata.block as string,
-          lot: signUpAttempt.unsafeMetadata.lot as string,
-          familyMembers: signUpAttempt.unsafeMetadata.familyMembers as string,
-          occupied: signUpAttempt.unsafeMetadata.occupied as boolean,
-          forRent: signUpAttempt.unsafeMetadata.forRent as boolean,
-          picture: signUpAttempt.unsafeMetadata.picture as string,
-          document: signUpAttempt.unsafeMetadata.document as null, // temporary
+          firstName: form.firstName,
+          lastName: form.lastName,
+          middleName: form.middleName,
+          contactNumber: form.contactNumber,
+          gender: form.gender,
+          phase: form.phase,
+          block: form.block,
+          lot: form.lot,
+          familyMembers: form.familyMembers,
+          occupied: form.occupied,
+          forRent: form.forRent,
+          picture: form.picture,
+          document: form.document, // temporary
         };
-        // addUser(userData);
+        const id = await addUser(userData);
+        console.log("User saved, doc id:", id);
 
-        // router.replace("/");
+        navigate("/");
         setIsLoading(false);
       } else {
         // If the status is not complete, check why. User may need to
@@ -697,6 +683,14 @@ export default function SignUp() {
               </div>
             )}
           </div>
+
+          {/* Clerk's CAPTCHA widget */}
+          <div
+            id="clerk-captcha"
+            data-cl-theme="dark"
+            data-cl-size="flexible"
+            data-cl-language="es-ES"
+          />
         </form>
       </div>
     </div>
