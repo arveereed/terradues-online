@@ -9,7 +9,7 @@ const ResidencySelection: React.FC = () => {
 
   const handleProceed = () => {
     if (selected) {
-      navigate(`/next-page?type=${selected.toLowerCase()}`);
+      navigate(`/residency-type=${selected.toLowerCase()}`);
     } else {
       alert("Please select a residency type first");
     }
