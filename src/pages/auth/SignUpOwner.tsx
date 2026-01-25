@@ -6,6 +6,7 @@ import { AlertCircle, Eye, EyeOff, Image, XCircle } from "lucide-react";
 import VerifyEmailUI from "../../components/VerifyEmailUI";
 import { addUser } from "../../features/auth/services/auth.service";
 import { useNavigate } from "react-router-dom";
+import { uploadToCloudinary } from "../../lib/cloudinary/cloudinary";
 
 interface FormData {
   firstName: string;
@@ -22,7 +23,7 @@ interface FormData {
   forRent: boolean;
   password: string;
   confirmPassword: string;
-  picture: string | ArrayBuffer | null;
+  picture: File | null;
   document: File | null;
 }
 
@@ -195,6 +196,11 @@ export default function SignUp() {
       if (signUpAttempt.status === "complete") {
         await setActive({ session: signUpAttempt.createdSessionId });
 
+        const imageUrl = await uploadToCloudinary(
+          form.picture as any,
+          "terradues/users/profile",
+        );
+
         const userData: UserDataSignUpType = {
           email: signUpAttempt.emailAddress as string,
           firstName: form.firstName,
@@ -208,7 +214,7 @@ export default function SignUp() {
           familyMembers: form.familyMembers,
           occupied: form.occupied,
           forRent: form.forRent,
-          picture: form.picture,
+          picture: imageUrl,
           document: form.document, // temporary
         };
         await addUser(userData);
@@ -262,15 +268,15 @@ export default function SignUp() {
   };
 
   const handleImageChange = async (e: any) => {
-    const file = e.target.files[0];
-    const imageUrl = await readFileAsDataURL(file);
+    const photo = e.target.files[0];
+
     setForm((prev) => ({
       ...prev,
-      picture: imageUrl,
+      picture: photo,
     }));
 
-    if (file) {
-      readFileAsDataURL(file).then(setImagePreview);
+    if (photo) {
+      readFileAsDataURL(photo).then((res) => setImagePreview(res as string));
     } else {
       setImagePreview(null);
     }
@@ -665,7 +671,7 @@ export default function SignUp() {
           <div className="md:col-span-2 mt-4">
             <button
               disabled={notAgree || isLoading}
-              className={`w-full cursor-pointer disabled:cursor-default disabled:bg-gray-400 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-semibold`}
+              className={`w-full transition-all cursor-pointer disabled:cursor-default disabled:bg-gray-400 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-semibold`}
             >
               {isLoading ? (
                 <span className="loading loading-bars loading-xs"></span>

@@ -1,4 +1,4 @@
-export interface UserDataSignUpType {
+export type UserDataSignUpType = {
   firstName: string;
   middleName: string;
   lastName: string;
@@ -13,4 +13,4 @@ export interface UserDataSignUpType {
   forRent: boolean;
   picture: string | ArrayBuffer | null;
   document: File | null;
-}
+};
