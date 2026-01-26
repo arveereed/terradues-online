@@ -1,7 +1,8 @@
-export async function uploadToCloudinary(
+export const uploadToCloudinary = async (
   file: File,
   folder: string,
-): Promise<string> {
+  type: "image" | "raw",
+): Promise<string> => {
   const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string;
   const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string;
 
@@ -10,7 +11,7 @@ export async function uploadToCloudinary(
   }
 
   // https://api.cloudinary.com/v1_1/<CLOUD_NAME>/<RESOURCE_TYPE>/upload
-  const url = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
+  const url = `https://api.cloudinary.com/v1_1/${cloudName}/${type}/upload`;
 
   const formData = new FormData();
   formData.append("file", file);
@@ -30,4 +31,4 @@ export async function uploadToCloudinary(
 
   // ✅ This is the image URL you store & display
   return data.secure_url as string;
-}
+};

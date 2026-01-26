@@ -79,12 +79,12 @@ export default function SignUp() {
       if (signUpAttempt.status === "complete") {
         await setActive({ session: signUpAttempt.createdSessionId });
 
-        const userData: UserDataSignUpType = {
+        /* const userData: UserDataSignUpType = {
           user_id: signUpAttempt.createdUserId as string,
           fullName: signUpAttempt.unsafeMetadata.fullName as string,
           address: signUpAttempt.unsafeMetadata.address as string,
           email: signUpAttempt.emailAddress as string,
-        };
+        }; */
         // addUser(userData);
 
         // router.replace("/");

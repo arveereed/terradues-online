@@ -1,4 +1,5 @@
 export type UserDataSignUpType = {
+  user_id: string;
   firstName: string;
   middleName: string;
   lastName: string;
@@ -12,5 +13,5 @@ export type UserDataSignUpType = {
   occupied: boolean;
   forRent: boolean;
   picture: string | ArrayBuffer | null;
-  document: File | null;
+  document: string | null;
 };

@@ -2,7 +2,7 @@ import { useSignUp } from "@clerk/clerk-react";
 import { useRef, useState } from "react";
 import type { UserDataSignUpType } from "../../types";
 import Icon from "../../assets/splashImage.png";
-import { AlertCircle, Eye, EyeOff, Image, XCircle } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, File, Image, XCircle } from "lucide-react";
 import VerifyEmailUI from "../../components/VerifyEmailUI";
 import { addUser } from "../../features/auth/services/auth.service";
 import { useNavigate } from "react-router-dom";
@@ -48,12 +48,17 @@ export default function SignUp() {
     password: "",
     confirmPassword: "",
     picture: null,
-    document: null, // todo: make document upload to cloudinary
+    document: null,
   });
+
   const [imagePreview, setImagePreview] = useState<
     string | ArrayBuffer | null | undefined
   >(null);
+  const [documentPreview, setDocumentPreview] = useState<string | null>(null);
+
   const pictureInputRef = useRef<HTMLInputElement | null>(null);
+  const documentRef = useRef<HTMLInputElement | null>(null);
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [notAgree, setNotAgree] = useState(true);
@@ -66,6 +71,23 @@ export default function SignUp() {
   const [error, setError] = useState<string>("");
 
   const navigate = useNavigate();
+
+  const isImageFile = (file: File) => file.type.startsWith("image/");
+
+  const isAllowedDocument = (file: File) => {
+    const allowedTypes = [
+      "application/pdf",
+      "application/msword", // .doc
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+    ];
+
+    const allowedExtensions = [".pdf", ".doc", ".docx"];
+
+    return (
+      allowedTypes.includes(file.type) ||
+      allowedExtensions.some((ext) => file.name.toLowerCase().endsWith(ext))
+    );
+  };
 
   const validateForm = () => {
     const errors: FormErrors = {};
@@ -123,15 +145,32 @@ export default function SignUp() {
       errors.confirmPassword = "Passwords do not match";
     }
 
+    // Picture validation
     if (!form.picture) {
       errors.picture = "Picture is required";
+    } else if (!isImageFile(form.picture)) {
+      errors.picture = "Please upload a valid image file";
     }
 
-    // todo: it should not be empty
-    /* 
+    // Document validation
     if (!form.document) {
       errors.document = "Document is required";
-    } */
+    } else if (!isAllowedDocument(form.document)) {
+      errors.document = "Document must be PDF, DOC, or DOCX";
+    }
+
+    const MAX_IMAGE_MB = 5;
+    const MAX_DOC_MB = 10;
+
+    // Picture validation size
+    if (form.picture && form.picture.size > MAX_IMAGE_MB * 1024 * 1024) {
+      errors.picture = `Image must be less than ${MAX_IMAGE_MB}MB`;
+    }
+
+    // Document validation size
+    if (form.document && form.document.size > MAX_DOC_MB * 1024 * 1024) {
+      errors.document = `Document must be less than ${MAX_DOC_MB}MB`;
+    }
 
     setErrors(errors);
     return Object.keys(errors).length === 0;
@@ -199,9 +238,16 @@ export default function SignUp() {
         const imageUrl = await uploadToCloudinary(
           form.picture as any,
           "terradues/users/profile",
+          "image",
+        );
+        const docUrl = await uploadToCloudinary(
+          form.document as any,
+          "terradues/users/document",
+          "raw",
         );
 
         const userData: UserDataSignUpType = {
+          user_id: signUpAttempt.createdUserId as string,
           email: signUpAttempt.emailAddress as string,
           firstName: form.firstName,
           lastName: form.lastName,
@@ -215,7 +261,7 @@ export default function SignUp() {
           occupied: form.occupied,
           forRent: form.forRent,
           picture: imageUrl,
-          document: form.document, // temporary
+          document: docUrl,
         };
         await addUser(userData);
 
@@ -267,6 +313,7 @@ export default function SignUp() {
     }));
   };
 
+  /* for UPLOAD PHOTO */
   const handleImageChange = async (e: any) => {
     const photo = e.target.files[0];
 
@@ -280,6 +327,30 @@ export default function SignUp() {
     } else {
       setImagePreview(null);
     }
+  };
+
+  /* for UPLOAD DOCUMENT */
+  const handleDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const doc = e.target.files?.[0] ?? null;
+
+    setForm((prev) => ({
+      ...prev,
+      document: doc,
+    }));
+
+    // cleanup previous preview URL
+    if (documentPreview) URL.revokeObjectURL(documentPreview);
+
+    if (!doc) {
+      setDocumentPreview(null);
+      return;
+    }
+
+    // ✅ Preview logic:
+    // - PDF: preview using blob URL in an iframe
+    // - Others: we still keep a blob URL (optional), but we’ll mostly show filename
+    const url = URL.createObjectURL(doc);
+    setDocumentPreview(url);
   };
 
   const readFileAsDataURL = (
@@ -299,7 +370,6 @@ export default function SignUp() {
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-lg p-6 md:p-10">
         {/* Header */}
-        {/* Logo + Image Section */}
         <div className="flex flex-col items-center px-4">
           <img
             src={Icon}
@@ -545,7 +615,7 @@ export default function SignUp() {
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              className={`absolute right-3 ${errors.password ? "top-1/3" : "top-1/2"} -translate-y-1/2 text-gray-500 hover:text-gray-700`}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -571,7 +641,7 @@ export default function SignUp() {
             <button
               type="button"
               onClick={() => setShowConfirmPassword((prev) => !prev)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              className={`absolute right-3 ${errors.password ? "top-1/3" : "top-1/2"} -translate-y-1/2 text-gray-500 hover:text-gray-700`}
             >
               {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -583,22 +653,32 @@ export default function SignUp() {
 
           {/* Uploads */}
           <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* PHOTO UPLOAD */}
             <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Photo
+              </label>
+
+              <p className="min-h-8 text-xs text-gray-500">
+                This must be a clear photo of you (not someone else).
+              </p>
+
               <label
-                className={`flex items-center gap-2 rounded-xl border px-4 py-2 text-sm cursor-pointer hover:bg-gray-50 ${
+                className={`flex h-9 w-full items-center gap-2 rounded-xl border px-4 text-sm cursor-pointer hover:bg-gray-50 ${
                   errors.picture ? "border-red-400" : "border-gray-300"
                 }`}
               >
-                <span className="flex items-center justify-center rounded-lg bg-green-100 text-green-600">
+                <span className="flex size-6 items-center justify-center rounded-lg bg-green-100 text-green-600">
                   <Image size={16} />
                 </span>
 
-                <span className="flex-1">Upload Your Photo</span>
+                <span className="flex-1 truncate">Upload Your Photo</span>
 
                 <input
                   type="file"
                   ref={pictureInputRef}
                   hidden
+                  accept="image/*"
                   onChange={handleImageChange}
                 />
               </label>
@@ -637,17 +717,96 @@ export default function SignUp() {
               )}
             </div>
 
+            {/* DOCUMENT UPLOAD */}
             <div>
+              <label className="block text-sm font-medium text-gray-700">
+                House Turnover Document
+              </label>
+
+              <p className="min-h-8 text-xs text-gray-500">
+                Upload your house turnover document for verification.
+              </p>
+
               <label
-                className={`flex items-center justify-between rounded-xl border px-4 py-2 text-sm cursor-pointer hover:bg-gray-50 ${
+                className={`flex h-9 w-full items-center gap-2 rounded-xl border px-4 text-sm cursor-pointer hover:bg-gray-50 ${
                   errors.document ? "border-red-400" : "border-gray-300"
                 }`}
               >
-                House Turnover Document
-                <input type="file" hidden />
+                <span className="flex size-6 items-center justify-center rounded-lg bg-green-100 text-green-600">
+                  <File size={16} />
+                </span>
+
+                <span className="flex-1 truncate">
+                  {form.document
+                    ? form.document.name
+                    : "Upload Document (PDF/DOC/DOCX)"}
+                </span>
+
+                <input
+                  type="file"
+                  ref={documentRef}
+                  hidden
+                  accept="application/pdf,.pdf,.doc,.docx"
+                  onChange={handleDocumentChange}
+                />
               </label>
+
               {errors.document && (
                 <p className={errorClass}>{errors.document}</p>
+              )}
+
+              {/*Document Preview + remove */}
+              {form.document && (
+                <div className="relative mt-2 rounded-lg border border-gray-200 p-2">
+                  {/* If PDF, show iframe preview */}
+                  {form.document.type === "application/pdf" &&
+                  documentPreview ? (
+                    <iframe
+                      src={documentPreview}
+                      title="Document preview"
+                      className="w-full h-40 rounded-md"
+                    />
+                  ) : (
+                    <div className="flex flex-col gap-1 text-sm text-gray-700">
+                      <p className="font-medium truncate">
+                        {form.document.name}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Word document • {Math.round(form.document.size / 1024)}{" "}
+                        KB
+                      </p>
+
+                      {documentPreview && (
+                        <a
+                          href={documentPreview}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-green-700 underline"
+                        >
+                          Open document
+                        </a>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ❌ Remove button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (documentPreview) URL.revokeObjectURL(documentPreview);
+                      setDocumentPreview(null);
+                      setForm((prev) => ({ ...prev, document: null }));
+
+                      // ✅ reset input so user can re-select same file
+                      if (documentRef.current) documentRef.current.value = "";
+                    }}
+                    className="absolute cursor-pointer -top-2 -right-2 grid size-5 place-items-center rounded-full bg-black/70 text-white hover:bg-black focus:outline-none focus:ring-2 focus:ring-green-500"
+                    aria-label="Remove document"
+                    title="Remove document"
+                  >
+                    ✕
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -671,7 +830,7 @@ export default function SignUp() {
           <div className="md:col-span-2 mt-4">
             <button
               disabled={notAgree || isLoading}
-              className={`w-full transition-all cursor-pointer disabled:cursor-default disabled:bg-gray-400 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-semibold`}
+              className={`btn w-full  disabled:bg-gray-400 border-green-600 bg-green-600 hover:bg-green-700 text-white `}
             >
               {isLoading ? (
                 <span className="loading loading-bars loading-xs"></span>
