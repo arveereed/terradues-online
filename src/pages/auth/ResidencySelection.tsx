@@ -27,11 +27,11 @@ const ResidencySelection: React.FC = () => {
         <button
           type="button"
           onClick={() => setSelected("Homeowner")}
-          className={`w-full py-4 rounded-lg font-semibold text-xl md:text-2xl transition cursor-pointer
+          className={`w-full slide-up delay-1 py-4 rounded-lg font-semibold text-xl md:text-2xl transition cursor-pointer
             ${
               selected === "Homeowner"
-                ? "bg-green-600 shadow-lg text-white"
-                : "border-2 border-gray-300 text-gray-700 hover:border-green-500"
+                ? "bg-green-700 shadow-lg text-white"
+                : "border-2 border-gray-300 text-gray-700 hover:border-green-800"
             }`}
         >
           Homeowner
@@ -41,25 +41,26 @@ const ResidencySelection: React.FC = () => {
         <button
           type="button"
           onClick={() => setSelected("Renter")}
-          className={`w-full py-4 rounded-lg font-semibold text-xl md:text-2xl transition cursor-pointer
+          className={`w-full slide-up delay-1 py-4 rounded-lg font-semibold text-xl md:text-2xl transition cursor-pointer
             ${
               selected === "Renter"
-                ? "bg-green-600 shadow-lg text-white"
-                : "border-2 border-gray-300 text-gray-700 hover:border-green-500"
+                ? "bg-green-700 shadow-lg text-white"
+                : "border-2 border-gray-300 text-gray-700 hover:border-green-800"
             }`}
         >
           Renter
         </button>
 
         {/* Proceed Button */}
+
         <button
           type="button"
           onClick={handleProceed}
           disabled={!selected}
-          className={`w-full py-4 rounded-full font-semibold text-xl md:text-2xl text-white mt-6 transition cursor-pointer
+          className={`w-full slide-up delay-1 py-4 rounded-full font-semibold text-xl md:text-2xl text-white mt-6 transition cursor-pointer
             ${
               selected
-                ? "bg-gradient-to-r from-green-500 to-green-600 hover:opacity-90"
+                ? "bg-gradient-to-r from-green-700 to-green-800 hover:opacity-90"
                 : "bg-gray-300 cursor-not-allowed"
             }`}
         >

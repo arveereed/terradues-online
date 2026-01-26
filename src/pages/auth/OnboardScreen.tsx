@@ -1,5 +1,6 @@
 import Icon from "../../assets/splashImage.png";
 import { Link, useNavigate } from "react-router-dom";
+import AppButton from "../../components/AppButton";
 
 export default function OnboardScreen() {
   const navigate = useNavigate();
@@ -33,12 +34,11 @@ export default function OnboardScreen() {
         </div>
 
         {/* Get Started Button */}
-        <button
+        <AppButton
+          label="Get Started"
+          className="slide-up delay-1"
           onClick={() => navigate("/residency-type")}
-          className="w-full max-w-xs bg-green-700 hover:bg-green-800 text-white py-3 rounded-full text-lg font-semibold transition transform hover:scale-[1.02] slide-up delay-1 cursor-pointer"
-        >
-          Get Started
-        </button>
+        />
 
         {/* Login Link */}
         <div className="flex items-center gap-1 slide-up delay-2">

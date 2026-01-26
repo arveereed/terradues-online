@@ -1,6 +1,5 @@
 import { useSignUp } from "@clerk/clerk-react";
 import { useState } from "react";
-import type { UserDataSignUpType } from "../../types";
 
 export default function SignUp() {
   const { isLoaded, signUp, setActive } = useSignUp();

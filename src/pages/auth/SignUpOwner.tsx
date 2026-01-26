@@ -851,7 +851,6 @@ export default function SignUp() {
             )}
           </div>
 
-          {/* Clerk's CAPTCHA widget */}
           <div
             id="clerk-captcha"
             data-cl-theme="dark"

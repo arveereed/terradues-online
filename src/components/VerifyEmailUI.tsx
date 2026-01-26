@@ -95,7 +95,7 @@ export default function VerifyEmailUI({
           <button
             onClick={onVerifyPress}
             disabled={isLoading || code.length !== 6}
-            className="bg-black disabled:cursor-default text-white hover:bg-neutral-800 shadow-sm hover:shadow-md  px-8 py-3 cursor-pointer font-medium rounded-lg  disabled:bg-neutral-400"
+            className="bg-green-700 slide-up delay-1 disabled:cursor-default text-white hover:bg-green-800 shadow-sm hover:shadow-md  px-8 py-3 cursor-pointer font-medium rounded-lg  disabled:bg-neutral-400"
           >
             {isLoading ? "Verifying..." : "Verify"}
           </button>

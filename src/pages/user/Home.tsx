@@ -1,3 +1,4 @@
+import { useClerk } from "@clerk/clerk-react";
 import {
   ShieldCheck,
   Trash2,
@@ -6,6 +7,7 @@ import {
   Leaf,
   ArrowRight,
 } from "lucide-react";
+import { useState } from "react";
 
 type Props = {
   userName?: string; // optional if you want to pass name from Clerk
@@ -44,6 +46,25 @@ const duesBreakdown = [
 ] as const;
 
 export default function Home({ userName = "Brylle" }: Props) {
+  const { signOut } = useClerk();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSignOut = async () => {
+    setIsLoading(true);
+    try {
+      await signOut();
+      // Redirect to your desired page
+      // setUser(null);
+    } catch (err) {
+      // See https://clerk.com/docs/custom-flows/error-handling
+      // for more info on error handling
+      console.error(JSON.stringify(err, null, 2));
+      setIsLoading(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-zinc-50">
       {/* Top glow / subtle accent */}
@@ -68,8 +89,19 @@ export default function Home({ userName = "Brylle" }: Props) {
             <button className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm hover:bg-zinc-50">
               View Dues
             </button>
-            <button className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700">
-              Pay Now
+            <button
+              disabled={isLoading}
+              onClick={handleSignOut}
+              className="rounded-xl disabled:bg-gray-400 disabled:cursor-default cursor-pointer bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
+            >
+              {isLoading ? (
+                <div className="space-x-2 text-center">
+                  <span className="loading loading-spinner loading-xs"></span>
+                  <span>Loading</span>
+                </div>
+              ) : (
+                "Logout"
+              )}
             </button>
           </div>
         </header>
