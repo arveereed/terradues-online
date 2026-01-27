@@ -75,7 +75,7 @@ export default function SignIn() {
           <h1 className="text-center text-xl font-bold text-gray-900">Login</h1>
 
           <form onSubmit={onSignInPress} className="mt-6 space-y-4">
-            {/* Email/Phone */}
+            {/* Email */}
             <div>
               <label className="mb-2 block text-xs font-medium text-gray-600">
                 Email Address
@@ -84,7 +84,7 @@ export default function SignIn() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 type="text"
-                placeholder="Enter your email or phone number"
+                placeholder="Enter your email"
               />
             </div>
 

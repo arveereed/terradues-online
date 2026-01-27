@@ -60,7 +60,7 @@ const ResidencySelection: React.FC = () => {
           className={`w-full slide-up delay-1 py-4 rounded-full font-semibold text-xl md:text-2xl text-white mt-6 transition cursor-pointer
             ${
               selected
-                ? "bg-gradient-to-r from-green-700 to-green-800 hover:opacity-90"
+                ? "bg-green-700 hover:bg-green-800"
                 : "bg-gray-300 cursor-not-allowed"
             }`}
         >
