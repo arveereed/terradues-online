@@ -9,6 +9,7 @@ import { useFirestoreUser } from "./features/auth/hooks/useFirestoreUser";
 import AppLoader from "./components/AppLoader";
 import Home from "./pages/user/Home";
 import ErrorNotFound from "./pages/ErrorNotFound";
+import ForgotPassword from "./pages/auth/ForgotPassword";
 
 function App() {
   const { user: clerkUser, isLoaded, isSignedIn } = useUser();
@@ -32,6 +33,10 @@ function App() {
       <Route
         path="/residency-type"
         element={isSignedIn ? <Home /> : <ResidencySelection />}
+      />
+      <Route
+        path="/forgot-password"
+        element={isSignedIn ? <Home /> : <ForgotPassword />}
       />
 
       {/* 404 – MUST be last */}

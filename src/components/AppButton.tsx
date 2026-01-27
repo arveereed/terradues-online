@@ -1,7 +1,8 @@
+import type React from "react";
 import type { ButtonHTMLAttributes } from "react";
 
 type AppButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  label: string;
+  label: string | React.ReactNode;
   fullWidth?: boolean;
 };
 

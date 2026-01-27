@@ -819,6 +819,18 @@ export default function SignUpOwner() {
             </p>
           </div>
 
+          {error && (
+            <div className="flex items-center justify-between  bg-red-500 text-white p-3 rounded-lg my-4">
+              <div className="flex items-center gap-2">
+                <AlertCircle size={20} />
+                <p>{error}</p>
+              </div>
+              <button className="cursor-pointer" onClick={() => setError("")}>
+                <XCircle size={20} />
+              </button>
+            </div>
+          )}
+
           {/* Submit */}
           <div className="md:col-span-2 mt-4">
             <button
@@ -831,17 +843,6 @@ export default function SignUpOwner() {
                 "Register"
               )}
             </button>
-            {error && (
-              <div className="flex items-center justify-between  bg-red-500 text-white p-3 rounded-lg my-4">
-                <div className="flex items-center gap-2">
-                  <AlertCircle size={20} />
-                  <p>{error}</p>
-                </div>
-                <button className="cursor-pointer" onClick={() => setError("")}>
-                  <XCircle size={20} />
-                </button>
-              </div>
-            )}
           </div>
 
           <div
