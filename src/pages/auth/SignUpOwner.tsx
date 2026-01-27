@@ -8,31 +8,22 @@ import { addUser } from "../../features/auth/services/auth.service";
 import { useNavigate } from "react-router-dom";
 import { uploadToCloudinary } from "../../lib/cloudinary/cloudinary";
 
-interface FormData {
-  firstName: string;
-  middleName: string;
-  lastName: string;
-  contactNumber: string;
-  email: string;
-  gender: string;
-  phase: string;
-  block: string;
-  lot: string;
-  familyMembers: string;
-  occupied: boolean;
-  forRent: boolean;
+type OwnerSignUpFormData = Omit<
+  UserDataSignUpOwnerType,
+  "userType" | "user_id" | "document" | "picture"
+> & {
   password: string;
   confirmPassword: string;
   picture: File | null;
   document: File | null;
-}
+};
 
-type FormErrors = Partial<Record<keyof FormData, string>>;
+type FormErrors = Partial<Record<keyof OwnerSignUpFormData, string>>;
 
 export default function SignUpOwner() {
   const [errors, setErrors] = useState<FormErrors>({});
 
-  const [form, setForm] = useState<FormData>({
+  const [form, setForm] = useState<OwnerSignUpFormData>({
     firstName: "",
     middleName: "",
     lastName: "",

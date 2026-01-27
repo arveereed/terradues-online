@@ -15,7 +15,7 @@ export type UserDataSignUpOwnerType = {
   occupied: boolean;
   forRent: boolean;
 
-  picture: string | ArrayBuffer | null;
+  picture: string | null;
   document: string | null;
 };
 
