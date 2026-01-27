@@ -7,6 +7,7 @@ import VerifyEmailUI from "../../components/VerifyEmailUI";
 import { addUser } from "../../features/auth/services/auth.service";
 import { useNavigate } from "react-router-dom";
 import { uploadToCloudinary } from "../../lib/cloudinary/cloudinary";
+import AppInput from "../../components/AppInput";
 
 type OwnerSignUpFormData = Omit<
   UserDataSignUpRenterType,
@@ -391,7 +392,7 @@ export default function SignUpOwner() {
 
           {/* First Name */}
           <div>
-            <input
+            <AppInput
               name="firstName"
               value={form.firstName}
               onChange={handleChange}
@@ -409,7 +410,7 @@ export default function SignUpOwner() {
 
           {/* Middle Name */}
           <div>
-            <input
+            <AppInput
               name="middleName"
               value={form.middleName}
               onChange={handleChange}
@@ -420,7 +421,7 @@ export default function SignUpOwner() {
 
           {/* Last Name */}
           <div className="md:col-span-2">
-            <input
+            <AppInput
               name="lastName"
               value={form.lastName}
               onChange={handleChange}
@@ -436,7 +437,7 @@ export default function SignUpOwner() {
 
           {/* Contact Number */}
           <div>
-            <input
+            <AppInput
               name="contactNumber"
               value={form.contactNumber}
               onChange={handleChange}
@@ -454,7 +455,7 @@ export default function SignUpOwner() {
 
           {/* Email */}
           <div>
-            <input
+            <AppInput
               name="email"
               value={form.email}
               onChange={handleChange}
@@ -499,7 +500,7 @@ export default function SignUpOwner() {
 
           {/* Phase */}
           <div>
-            <input
+            <AppInput
               name="phase"
               value={form.phase}
               onChange={handleChange}
@@ -515,7 +516,7 @@ export default function SignUpOwner() {
 
           {/* Block */}
           <div>
-            <input
+            <AppInput
               name="block"
               value={form.block}
               onChange={handleChange}
@@ -531,7 +532,7 @@ export default function SignUpOwner() {
 
           {/* Lot */}
           <div>
-            <input
+            <AppInput
               name="lot"
               value={form.lot}
               onChange={handleChange}
@@ -547,7 +548,7 @@ export default function SignUpOwner() {
 
           {/* Password */}
           <div className="relative">
-            <input
+            <AppInput
               type={showPassword ? "text" : "password"}
               name="password"
               value={form.password}
@@ -573,7 +574,7 @@ export default function SignUpOwner() {
 
           {/* Confirm Password */}
           <div className="relative">
-            <input
+            <AppInput
               type={showConfirmPassword ? "text" : "password"}
               name="confirmPassword"
               value={form.confirmPassword}
@@ -608,7 +609,7 @@ export default function SignUpOwner() {
 
           {/* Owner Name */}
           <div>
-            <input
+            <AppInput
               name="ownerName"
               value={form.ownerName}
               onChange={handleChange}
@@ -626,7 +627,7 @@ export default function SignUpOwner() {
 
           {/* Owner Contact Number */}
           <div>
-            <input
+            <AppInput
               name="ownerContactNumber"
               value={form.ownerContactNumber}
               onChange={handleChange}
@@ -644,7 +645,7 @@ export default function SignUpOwner() {
 
           {/* Owner Address */}
           <div>
-            <input
+            <AppInput
               name="ownerAddress"
               value={form.ownerAddress}
               onChange={handleChange}
@@ -662,7 +663,7 @@ export default function SignUpOwner() {
 
           {/* Number of Occupants */}
           <div>
-            <input
+            <AppInput
               name="ownerNumberOccupants"
               value={form.ownerNumberOccupants}
               onChange={handleChange}
@@ -701,7 +702,7 @@ export default function SignUpOwner() {
 
                 <span className="flex-1 truncate">Upload Your Photo</span>
 
-                <input
+                <AppInput
                   type="file"
                   ref={pictureInputRef}
                   hidden
@@ -727,7 +728,7 @@ export default function SignUpOwner() {
                           setImagePreview(null);
                           setForm((prev) => ({ ...prev, picture: null }));
 
-                          // ✅ IMPORTANT: reset file input so selecting the same file triggers onChange
+                          // ✅ IMPORTANT: reset file AppInput so selecting the same file triggers onChange
                           if (pictureInputRef.current) {
                             pictureInputRef.current.value = "";
                           }
@@ -769,7 +770,7 @@ export default function SignUpOwner() {
                     : "Upload Document (PDF/DOC/DOCX)"}
                 </span>
 
-                <input
+                <AppInput
                   type="file"
                   ref={documentRef}
                   hidden
@@ -824,7 +825,7 @@ export default function SignUpOwner() {
                       setDocumentPreview(null);
                       setForm((prev) => ({ ...prev, document: null }));
 
-                      // ✅ reset input so user can re-select same file
+                      // ✅ reset AppInput so user can re-select same file
                       if (documentRef.current) documentRef.current.value = "";
                     }}
                     className="absolute cursor-pointer -top-2 -right-2 grid size-5 place-items-center rounded-full bg-black/70 text-white hover:bg-black focus:outline-none focus:ring-2 focus:ring-green-500"

@@ -36,7 +36,7 @@ export default function OnboardScreen() {
         {/* Get Started Button */}
         <AppButton
           label="Get Started"
-          className="slide-up delay-1"
+          className="slide-up delady-1"
           onClick={() => navigate("/residency-type")}
         />
 

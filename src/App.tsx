@@ -8,6 +8,7 @@ import { useUser } from "@clerk/clerk-react";
 import { useFirestoreUser } from "./features/auth/hooks/useFirestoreUser";
 import AppLoader from "./components/AppLoader";
 import Home from "./pages/user/Home";
+import ErrorNotFound from "./pages/ErrorNotFound";
 
 function App() {
   const { user: clerkUser, isLoaded, isSignedIn } = useUser();
@@ -19,7 +20,7 @@ function App() {
     <Routes>
       {/* Authentication */}
       <Route path="/" element={isSignedIn ? <Home /> : <OnboardScreen />} />
-      <Route path="/sign-in" element={<SignIn />} />
+      <Route path="/sign-in" element={isSignedIn ? <Home /> : <SignIn />} />
       <Route
         path="/residency-type=homeowner"
         element={isSignedIn ? <Home /> : <SignUpOwner />}
@@ -32,6 +33,9 @@ function App() {
         path="/residency-type"
         element={isSignedIn ? <Home /> : <ResidencySelection />}
       />
+
+      {/* 404 – MUST be last */}
+      <Route path="*" element={<ErrorNotFound />} />
     </Routes>
   );
 }
