@@ -1,6 +1,6 @@
 import { useSignUp } from "@clerk/clerk-react";
 import { useRef, useState } from "react";
-import type { UserDataSignUpType } from "../../types";
+import type { UserDataSignUpOwnerType } from "../../types";
 import Icon from "../../assets/splashImage.png";
 import { AlertCircle, Eye, EyeOff, File, Image, XCircle } from "lucide-react";
 import VerifyEmailUI from "../../components/VerifyEmailUI";
@@ -246,7 +246,8 @@ export default function SignUp() {
           "raw",
         );
 
-        const userData: UserDataSignUpType = {
+        const userData: UserDataSignUpOwnerType = {
+          userType: "Owner",
           user_id: signUpAttempt.createdUserId as string,
           email: signUpAttempt.emailAddress as string,
           firstName: form.firstName,
