@@ -1,6 +1,6 @@
 import { useSignUp } from "@clerk/clerk-react";
 import { useRef, useState } from "react";
-import type { UserDataSignUpOwnerType } from "../../types";
+import type { UserDataSignUpRenterType } from "../../types";
 import Icon from "../../assets/splashImage.png";
 import { AlertCircle, Eye, EyeOff, File, Image, XCircle } from "lucide-react";
 import VerifyEmailUI from "../../components/VerifyEmailUI";
@@ -9,7 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { uploadToCloudinary } from "../../lib/cloudinary/cloudinary";
 
 type OwnerSignUpFormData = Omit<
-  UserDataSignUpOwnerType,
+  UserDataSignUpRenterType,
   "userType" | "user_id" | "document" | "picture"
 > & {
   password: string;
@@ -33,13 +33,14 @@ export default function SignUpOwner() {
     phase: "",
     block: "",
     lot: "",
-    familyMembers: "",
-    occupied: false,
-    forRent: false,
     password: "",
     confirmPassword: "",
     picture: null,
     document: null,
+    ownerAddress: "",
+    ownerContactNumber: "",
+    ownerName: "",
+    ownerNumberOccupants: "",
   });
 
   const [imagePreview, setImagePreview] = useState<
@@ -102,14 +103,13 @@ export default function SignUpOwner() {
     if (!form.phase) errors.phase = "Phase is required";
     if (!form.block) errors.block = "Block is required";
     if (!form.lot) errors.lot = "Lot is required";
+    if (!form.ownerAddress) errors.ownerAddress = "Owner's address is required";
+    if (!form.ownerContactNumber)
+      errors.ownerContactNumber = "Owner's contact number is required";
+    if (!form.ownerName) errors.ownerName = "Owner's name is required";
 
-    if (!form.familyMembers.trim()) {
-      errors.familyMembers = "Family members is required";
-    }
-
-    // Boolean fields
-    if (!form.occupied && !form.forRent) {
-      errors.occupied = "Occupancy Type is required";
+    if (!form.ownerNumberOccupants.trim()) {
+      errors.ownerNumberOccupants = "Number of Occupants is required";
     }
 
     // Password
@@ -237,8 +237,8 @@ export default function SignUpOwner() {
           "raw",
         );
 
-        const userData: UserDataSignUpOwnerType = {
-          userType: "Owner",
+        const userData: UserDataSignUpRenterType = {
+          userType: "Renter",
           user_id: signUpAttempt.createdUserId as string,
           email: signUpAttempt.emailAddress as string,
           firstName: form.firstName,
@@ -249,11 +249,13 @@ export default function SignUpOwner() {
           phase: form.phase,
           block: form.block,
           lot: form.lot,
-          familyMembers: form.familyMembers,
-          occupied: form.occupied,
-          forRent: form.forRent,
           picture: imageUrl,
           document: docUrl,
+
+          ownerAddress: form.ownerAddress,
+          ownerContactNumber: form.ownerContactNumber,
+          ownerName: form.ownerName,
+          ownerNumberOccupants: form.ownerNumberOccupants,
         };
         await addUser(userData);
 
@@ -543,52 +545,6 @@ export default function SignUpOwner() {
             {errors.lot && <p className={errorClass}>{errors.lot}</p>}
           </div>
 
-          {/* Family Members */}
-          <div>
-            <input
-              name="familyMembers"
-              value={form.familyMembers}
-              onChange={handleChange}
-              className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 ${
-                errors.familyMembers
-                  ? "border-red-400 focus:ring-red-500"
-                  : "border-gray-300 focus:ring-green-500"
-              }`}
-              placeholder="Number of Family Members"
-            />
-            {errors.familyMembers && (
-              <p className={errorClass}>{errors.familyMembers}</p>
-            )}
-          </div>
-
-          {/* Occupancy */}
-          <div className="md:col-span-2 flex flex-wrap gap-4 text-sm text-gray-700">
-            <span className="font-medium">Occupancy Type:</span>
-            <label className="flex items-center gap-1">
-              <input
-                type="checkbox"
-                name="occupied"
-                checked={form.occupied}
-                onChange={handleChange}
-              />
-              Occupied
-            </label>
-            <label className="flex items-center gap-1">
-              <input
-                type="checkbox"
-                name="forRent"
-                checked={form.forRent}
-                onChange={handleChange}
-              />
-              For Rent
-            </label>
-          </div>
-          {errors.occupied && (
-            <p className="md:col-span-2 text-xs text-red-500">
-              Please select occupancy type
-            </p>
-          )}
-
           {/* Password */}
           <div className="relative">
             <input
@@ -640,6 +596,85 @@ export default function SignUpOwner() {
 
             {errors.confirmPassword && (
               <p className={errorClass}>{errors.confirmPassword}</p>
+            )}
+          </div>
+
+          {/* Homeowner Details */}
+          <div className="md:col-span-2">
+            <h2 className="text-sm font-semibold text-gray-600 mt-4 mb-2">
+              Homeowner Details
+            </h2>
+          </div>
+
+          {/* Owner Name */}
+          <div>
+            <input
+              name="ownerName"
+              value={form.ownerName}
+              onChange={handleChange}
+              className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 ${
+                errors.ownerName
+                  ? "border-red-400 focus:ring-red-500"
+                  : "border-gray-300 focus:ring-green-500"
+              }`}
+              placeholder="Owner's fullname"
+            />
+            {errors.ownerName && (
+              <p className={errorClass}>{errors.ownerName}</p>
+            )}
+          </div>
+
+          {/* Owner Contact Number */}
+          <div>
+            <input
+              name="ownerContactNumber"
+              value={form.ownerContactNumber}
+              onChange={handleChange}
+              className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 ${
+                errors.ownerContactNumber
+                  ? "border-red-400 focus:ring-red-500"
+                  : "border-gray-300 focus:ring-green-500"
+              }`}
+              placeholder="Owner's contact number"
+            />
+            {errors.ownerContactNumber && (
+              <p className={errorClass}>{errors.ownerContactNumber}</p>
+            )}
+          </div>
+
+          {/* Owner Address */}
+          <div>
+            <input
+              name="ownerAddress"
+              value={form.ownerAddress}
+              onChange={handleChange}
+              className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 ${
+                errors.ownerAddress
+                  ? "border-red-400 focus:ring-red-500"
+                  : "border-gray-300 focus:ring-green-500"
+              }`}
+              placeholder="Owner's address"
+            />
+            {errors.ownerAddress && (
+              <p className={errorClass}>{errors.ownerAddress}</p>
+            )}
+          </div>
+
+          {/* Number of Occupants */}
+          <div>
+            <input
+              name="ownerNumberOccupants"
+              value={form.ownerNumberOccupants}
+              onChange={handleChange}
+              className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 ${
+                errors.ownerNumberOccupants
+                  ? "border-red-400 focus:ring-red-500"
+                  : "border-gray-300 focus:ring-green-500"
+              }`}
+              placeholder="Number of Occupants"
+            />
+            {errors.ownerNumberOccupants && (
+              <p className={errorClass}>{errors.ownerNumberOccupants}</p>
             )}
           </div>
 
@@ -712,11 +747,11 @@ export default function SignUpOwner() {
             {/* DOCUMENT UPLOAD */}
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                House Turnover Document
+                House Lease Agreement Document
               </label>
 
               <p className="min-h-8 text-xs text-gray-500">
-                Upload your house turnover document for verification.
+                Upload your house lease agreement document for verification.
               </p>
 
               <label
@@ -847,7 +882,7 @@ export default function SignUpOwner() {
             id="clerk-captcha"
             data-cl-theme="dark"
             data-cl-size="flexible"
-            data-cl-language="es-ES"
+            data-cl-language="en-US"
           />
         </form>
       </div>

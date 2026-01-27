@@ -1,5 +1,5 @@
 export type UserDataSignUpOwnerType = {
-  userType: string;
+  userType: "Owner" | "Renter";
   user_id: string;
   firstName: string;
   middleName: string;
