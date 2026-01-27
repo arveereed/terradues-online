@@ -9,8 +9,7 @@ import {
 import type {
   UserDataSignUpOwnerType,
   UserDataSignUpRenterType,
-  UserOwner,
-  UserRenter,
+  User,
 } from "../../../types";
 import { db } from "../../../lib/firebase/firebase";
 
@@ -35,7 +34,7 @@ export const getUserById = async (userId: string) => {
 
     if (!querySnapshot.empty) {
       const docSnap = querySnapshot.docs[0];
-      return { ...(docSnap.data() as UserOwner | UserRenter), id: docSnap.id };
+      return { ...(docSnap.data() as User), id: docSnap.id };
     }
 
     console.warn(`No user found with ID: ${userId}`);

@@ -30,20 +30,21 @@ export type UserDataSignUpRenterType = Omit<
 };
 
 // Firestore timestamp structure
-export interface FirestoreTimestamp {
+type FirestoreTimestamp = {
   type: "firestore/timestamp/1.0";
   seconds: number;
   nanoseconds: number;
-}
+};
 
-// Main userOwner type
-export type UserOwner = UserDataSignUpOwnerType & {
+type UserOwner = UserDataSignUpOwnerType & {
   id: string; //
   createdAt: FirestoreTimestamp;
 };
 
-// Main userRenter type
-export type UserRenter = UserDataSignUpRenterType & {
+type UserRenter = UserDataSignUpRenterType & {
   id: string; //
   createdAt: FirestoreTimestamp;
 };
+
+// Main user type
+export type User = UserRenter | UserOwner;
