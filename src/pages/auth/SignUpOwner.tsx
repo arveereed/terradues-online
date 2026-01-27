@@ -29,7 +29,7 @@ interface FormData {
 
 type FormErrors = Partial<Record<keyof FormData, string>>;
 
-export default function SignUp() {
+export default function SignUpOwner() {
   const [errors, setErrors] = useState<FormErrors>({});
 
   const [form, setForm] = useState<FormData>({

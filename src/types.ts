@@ -10,27 +10,23 @@ export type UserDataSignUpOwnerType = {
   phase: string;
   block: string;
   lot: string;
+
   familyMembers: string;
   occupied: boolean;
   forRent: boolean;
+
   picture: string | ArrayBuffer | null;
   document: string | null;
 };
 
-export type UserDataSignUpRenterType = {
-  userType: string;
-  user_id: string;
-  firstName: string;
-  middleName: string;
-  lastName: string;
-  contactNumber: string;
-  email: string;
-  gender: string;
-  phase: string;
-  block: string;
-  lot: string;
-  picture: string | ArrayBuffer | null;
-  document: string | null;
+export type UserDataSignUpRenterType = Omit<
+  UserDataSignUpOwnerType,
+  "familyMembers" | "occupied" | "forRent"
+> & {
+  ownerName: string;
+  ownerContactNumber: string;
+  ownerAddress: string;
+  ownerNumberOccupants: string;
 };
 
 // Firestore timestamp structure
@@ -41,27 +37,7 @@ export interface FirestoreTimestamp {
 }
 
 // Main user type
-export interface User {
-  id: string;
-  user_id: string;
-
-  firstName: string;
-  middleName: string;
-  lastName: string;
-  gender: "Male" | "Female" | "Other"; // extensible
-  email: string;
-  contactNumber: string;
-
-  block: string;
-  lot: string;
-  phase: string;
-  familyMembers: string;
-
-  occupied: boolean;
-  forRent: boolean;
-
-  picture: string; // Cloudinary image URL
-  document: string; // Cloudinary PDF URL
-
+export type UserOwner = UserDataSignUpOwnerType & {
+  id: string; //
   createdAt: FirestoreTimestamp;
-}
+};

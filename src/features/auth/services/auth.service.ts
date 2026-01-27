@@ -6,10 +6,10 @@ import {
   Timestamp,
   where,
 } from "firebase/firestore";
-import type { User, UserDataSignUpType } from "../../../types";
+import type { UserDataSignUpOwnerType, UserOwner } from "../../../types";
 import { db } from "../../../lib/firebase/firebase";
 
-export const addUser = async (userData: UserDataSignUpType) => {
+export const addUser = async (userData: UserDataSignUpOwnerType) => {
   const usersCollection = collection(db, "users");
 
   const docRef = await addDoc(usersCollection, {
@@ -28,7 +28,7 @@ export const getUserById = async (userId: string) => {
 
     if (!querySnapshot.empty) {
       const docSnap = querySnapshot.docs[0];
-      return { ...(docSnap.data() as User), id: docSnap.id };
+      return { ...(docSnap.data() as UserOwner), id: docSnap.id };
     }
 
     console.warn(`No user found with ID: ${userId}`);
