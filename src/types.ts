@@ -36,8 +36,14 @@ export interface FirestoreTimestamp {
   nanoseconds: number;
 }
 
-// Main user type
+// Main userOwner type
 export type UserOwner = UserDataSignUpOwnerType & {
+  id: string; //
+  createdAt: FirestoreTimestamp;
+};
+
+// Main userRenter type
+export type UserRenter = UserDataSignUpRenterType & {
   id: string; //
   createdAt: FirestoreTimestamp;
 };
