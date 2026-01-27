@@ -847,7 +847,7 @@ export default function SignUpOwner() {
             id="clerk-captcha"
             data-cl-theme="dark"
             data-cl-size="flexible"
-            data-cl-language="es-ES"
+            data-cl-language="en-US"
           />
         </form>
       </div>
