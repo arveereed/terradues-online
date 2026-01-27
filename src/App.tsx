@@ -20,9 +20,18 @@ function App() {
       {/* Authentication */}
       <Route path="/" element={isSignedIn ? <Home /> : <OnboardScreen />} />
       <Route path="/sign-in" element={<SignIn />} />
-      <Route path="/residency-type=homeowner" element={<SignUpOwner />} />
-      <Route path="/residency-type=renter" element={<SignUpRenter />} />
-      <Route path="/residency-type" element={<ResidencySelection />} />
+      <Route
+        path="/residency-type=homeowner"
+        element={isSignedIn ? <Home /> : <SignUpOwner />}
+      />
+      <Route
+        path="/residency-type=renter"
+        element={isSignedIn ? <Home /> : <SignUpRenter />}
+      />
+      <Route
+        path="/residency-type"
+        element={isSignedIn ? <Home /> : <ResidencySelection />}
+      />
     </Routes>
   );
 }
