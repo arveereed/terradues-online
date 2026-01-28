@@ -1,4 +1,3 @@
-import { useClerk } from "@clerk/clerk-react";
 import {
   ShieldCheck,
   Trash2,
@@ -7,7 +6,6 @@ import {
   Leaf,
   ArrowRight,
 } from "lucide-react";
-import { useState } from "react";
 import AppShell from "../../components/AppShell";
 
 type Props = {

@@ -16,7 +16,7 @@ import SettingsPage from "./pages/user/SettingsPage";
 
 function App() {
   const { user: clerkUser, isLoaded, isSignedIn } = useUser();
-  const { data: user, isLoading } = useFirestoreUser(clerkUser?.id as string);
+  const { isLoading } = useFirestoreUser(clerkUser?.id as string);
 
   if (!isLoaded || isLoading) return <AppLoader />;
 

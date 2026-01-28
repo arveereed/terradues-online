@@ -65,11 +65,7 @@ export default function NotificationPage({
   ],
 }: Props) {
   return (
-    <AppShell
-      userName={userName}
-      onLogout={onLogout}
-      isLoggingOut={isLoggingOut}
-    >
+    <AppShell>
       {/* Page header */}
       <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200 sm:p-7">
         <div className="flex items-center justify-between gap-3">

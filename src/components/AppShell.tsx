@@ -6,7 +6,6 @@ import {
   Home as HomeIcon,
   Wallet,
   Megaphone,
-  Bell,
   Settings,
   LogOut,
 } from "lucide-react";

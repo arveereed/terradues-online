@@ -20,7 +20,7 @@ export default function SettingsPage() {
   const [active, setActive] = useState<SettingsSectionKey>("personal");
 
   return (
-    <AppShell userName="Brylle">
+    <AppShell>
       {/* Header */}
       <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200 sm:p-7">
         <p className="text-xs font-semibold text-zinc-500">TERRADUES</p>

@@ -219,11 +219,7 @@ export default function PaymentHistory({
   if (page > totalPages) setPage(totalPages);
 
   return (
-    <AppShell
-      userName={userName}
-      onLogout={onLogout}
-      isLoggingOut={isLoggingOut}
-    >
+    <AppShell>
       {/* Greeting / Profile strip */}
       <section className="rounded-3xl bg-emerald-700 p-5 text-white shadow-sm ring-1 ring-emerald-600/30 sm:p-7">
         <p className="text-xs text-emerald-50/90">Good Day!</p>

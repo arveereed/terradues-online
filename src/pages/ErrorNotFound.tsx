@@ -1,5 +1,4 @@
 import { Link } from "react-router-dom";
-import AppButton from "../components/AppButton";
 import { AlertTriangle } from "lucide-react";
 
 export default function ErrorNotFound() {
