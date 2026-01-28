@@ -8,6 +8,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useState } from "react";
+import AppShell from "../../components/AppShell";
 
 type Props = {
   userName?: string; // optional if you want to pass name from Clerk
@@ -66,142 +67,106 @@ export default function Home({ userName = "Brylle" }: Props) {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50">
-      {/* Top glow / subtle accent */}
-      <div className="pointer-events-none fixed inset-x-0 top-0 h-64 bg-gradient-to-b from-emerald-100/70 to-transparent" />
-
-      <main className="relative mx-auto w-full max-w-6xl px-4 py-6 sm:py-10">
-        {/* Header */}
-        <header className="mb-6 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="grid size-10 place-items-center rounded-2xl bg-emerald-600 text-white shadow-sm">
-              <span className="text-sm font-bold">TD</span>
-            </div>
-            <div className="leading-tight">
-              <p className="text-xs font-medium text-zinc-500">TERRA</p>
-              <p className="text-base font-extrabold tracking-tight text-zinc-900">
-                DUES
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 shadow-sm hover:bg-zinc-50">
-              View Dues
-            </button>
-            <button
-              disabled={isLoading}
-              onClick={handleSignOut}
-              className="rounded-xl disabled:bg-gray-400 disabled:cursor-default cursor-pointer bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700"
-            >
-              {isLoading ? (
-                <div className="space-x-2 text-center">
-                  <span className="loading loading-spinner loading-xs"></span>
-                  <span>Loading</span>
-                </div>
-              ) : (
-                "Logout"
-              )}
-            </button>
-          </div>
-        </header>
-
-        {/* Content grid */}
-        <section className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          {/* Left column (Hero + Welcome) */}
-          <div className="lg:col-span-7">
-            {/* Hero image */}
-            <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-zinc-200">
-              <div className="relative">
-                {/* Replace with your image path:
+    <AppShell
+      userName={userName}
+      onLogout={handleSignOut}
+      isLoggingOut={isLoading}
+    >
+      {/* Content grid */}
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        {/* Left column (Hero + Welcome) */}
+        <div className="lg:col-span-7">
+          {/* Hero image */}
+          <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-zinc-200">
+            <div className="relative">
+              {/* Replace with your image path:
                     - put image in src/assets and import it,
                     - OR use /public and reference "/your-image.png"
                 */}
-                <img
-                  src="/house.jpg"
-                  alt="Community house"
-                  className="h-56 w-full object-cover sm:h-72"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
-              </div>
-
-              {/* Welcome panel */}
-              <div className="bg-emerald-700 p-5 sm:p-7">
-                <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
-                  Welcome, {userName}!
-                </h1>
-                <p className="mt-3 text-sm leading-relaxed text-emerald-50/90 sm:text-[15px]">
-                  Terra Dues helps you stay informed and connected with your
-                  community responsibilities by providing easy access to your
-                  monthly dues and payment updates. Track your dues, receive
-                  timely alerts, and confirm your payment status anytime. You
-                  can also review payment history, view announcements, and stay
-                  updated on important community communications.
-                </p>
-
-                <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-                  <button className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-emerald-800 shadow-sm hover:bg-emerald-50">
-                    Check My Balance <ArrowRight size={16} />
-                  </button>
-                  <button className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-200/30 bg-emerald-700/40 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700/55">
-                    View Announcements <ArrowRight size={16} />
-                  </button>
-                </div>
-              </div>
+              <img
+                src="/house.jpg"
+                alt="Community house"
+                className="h-56 w-full object-cover sm:h-72"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
             </div>
-          </div>
 
-          {/* Right column (Where dues go) */}
-          <div className="lg:col-span-5">
-            <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200 sm:p-7">
-              <h2 className="text-lg font-extrabold text-zinc-900">
-                Where Your Dues Go?
-              </h2>
-              <p className="mt-1 text-sm text-zinc-500">
-                Transparent breakdown of community expenses.
+            {/* Welcome panel */}
+            <div className="bg-emerald-700 p-5 sm:p-7">
+              <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
+                Welcome, {userName}!
+              </h1>
+              <p className="mt-3 text-sm leading-relaxed text-emerald-50/90 sm:text-[15px]">
+                Terra Dues helps you stay informed and connected with your
+                community responsibilities by providing easy access to your
+                monthly dues and payment updates. Track your dues, receive
+                timely alerts, and confirm your payment status anytime. You can
+                also review payment history, view announcements, and stay
+                updated on important community communications.
               </p>
 
-              <div className="mt-5 space-y-3">
-                {duesBreakdown.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <div
-                      key={item.title}
-                      className="flex gap-3 rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 hover:bg-white"
-                    >
-                      <div className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-2xl bg-emerald-600 text-white shadow-sm">
-                        <Icon size={18} />
-                      </div>
-
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-zinc-900">
-                          {item.title}
-                        </p>
-                        <p className="mt-0.5 text-sm leading-relaxed text-zinc-600">
-                          {item.description}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* mini footer */}
-              <div className="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
-                <p className="text-sm font-semibold text-emerald-900">
-                  Tip: Keep payments updated
-                </p>
-                <p className="mt-1 text-sm text-emerald-900/80">
-                  Enable reminders so you never miss a due date.
-                </p>
+              <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+                <button className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-emerald-800 shadow-sm hover:bg-emerald-50">
+                  Check My Balance <ArrowRight size={16} />
+                </button>
+                <button className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-200/30 bg-emerald-700/40 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700/55">
+                  View Announcements <ArrowRight size={16} />
+                </button>
               </div>
             </div>
           </div>
-        </section>
+        </div>
 
-        {/* Bottom spacing */}
-        <div className="h-10" />
-      </main>
-    </div>
+        {/* Right column (Where dues go) */}
+        <div className="lg:col-span-5">
+          <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200 sm:p-7">
+            <h2 className="text-lg font-extrabold text-zinc-900">
+              Where Your Dues Go?
+            </h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              Transparent breakdown of community expenses.
+            </p>
+
+            <div className="mt-5 space-y-3">
+              {duesBreakdown.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div
+                    key={item.title}
+                    className="flex gap-3 rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 hover:bg-white"
+                  >
+                    <div className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-2xl bg-emerald-600 text-white shadow-sm">
+                      <Icon size={18} />
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-zinc-900">
+                        {item.title}
+                      </p>
+                      <p className="mt-0.5 text-sm leading-relaxed text-zinc-600">
+                        {item.description}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* mini footer */}
+            <div className="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+              <p className="text-sm font-semibold text-emerald-900">
+                Tip: Keep payments updated
+              </p>
+              <p className="mt-1 text-sm text-emerald-900/80">
+                Enable reminders so you never miss a due date.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Bottom spacing */}
+      <div className="h-10" />
+    </AppShell>
   );
 }

@@ -10,6 +10,9 @@ import AppLoader from "./components/AppLoader";
 import Home from "./pages/user/Home";
 import ErrorNotFound from "./pages/ErrorNotFound";
 import ForgotPassword from "./pages/auth/ForgotPassword";
+import PaymentHistory from "./pages/user/PaymentHistory";
+import NotificationPage from "./pages/user/NotificationPage";
+import SettingsPage from "./pages/user/SettingsPage";
 
 function App() {
   const { user: clerkUser, isLoaded, isSignedIn } = useUser();
@@ -37,6 +40,20 @@ function App() {
       <Route
         path="/forgot-password"
         element={isSignedIn ? <Home /> : <ForgotPassword />}
+      />
+
+      {/* User Page */}
+      <Route
+        path="/payment-history"
+        element={isSignedIn ? <PaymentHistory /> : <SignIn />}
+      />
+      <Route
+        path="/notification"
+        element={isSignedIn ? <NotificationPage /> : <SignIn />}
+      />
+      <Route
+        path="/settings"
+        element={isSignedIn ? <SettingsPage /> : <SignIn />}
       />
 
       {/* 404 – MUST be last */}
