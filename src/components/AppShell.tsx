@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Menu,
@@ -10,18 +10,12 @@ import {
   Settings,
   LogOut,
 } from "lucide-react";
+import { useClerk } from "@clerk/clerk-react";
 
 type NavItem = {
   label: string;
   to: string;
   icon: React.ElementType;
-};
-
-type AppShellProps = {
-  userName?: string;
-  onLogout?: () => void;
-  isLoggingOut?: boolean;
-  children: ReactNode;
 };
 
 const navItems: NavItem[] = [
@@ -32,13 +26,9 @@ const navItems: NavItem[] = [
   { label: "Settings", to: "/settings", icon: Settings },
 ];
 
-export default function AppShell({
-  userName = "User",
-  onLogout,
-  isLoggingOut,
-  children,
-}: AppShellProps) {
+export default function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const userName = "Bryle B. Milliomeda";
 
   // Lock body scroll when sidebar is open on mobile
   useEffect(() => {
@@ -48,6 +38,25 @@ export default function AppShell({
       document.body.style.overflow = "";
     };
   }, [open]);
+
+  const { signOut } = useClerk();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSignOut = async () => {
+    setIsLoading(true);
+    try {
+      await signOut();
+      // Redirect to your desired page
+      // setUser(null);
+    } catch (err) {
+      // See https://clerk.com/docs/custom-flows/error-handling
+      // for more info on error handling
+      console.error(JSON.stringify(err, null, 2));
+      setIsLoading(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-zinc-50">
@@ -156,12 +165,12 @@ export default function AppShell({
 
           <div className="mt-6 px-4">
             <button
-              disabled={isLoggingOut}
-              onClick={onLogout}
+              disabled={isLoading}
+              onClick={handleSignOut}
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-gray-400 cursor-pointer"
             >
               <LogOut size={18} />
-              {isLoggingOut ? (
+              {isLoading ? (
                 <span className="loading loading-bars loading-xs"></span>
               ) : (
                 "Logout"
@@ -214,12 +223,12 @@ export default function AppShell({
             </nav>
 
             <button
-              disabled={isLoggingOut}
-              onClick={onLogout}
+              disabled={isLoading}
+              onClick={handleSignOut}
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed cursor-pointer disabled:bg-gray-400"
             >
               <LogOut size={18} />
-              {isLoggingOut ? (
+              {isLoading ? (
                 <span className="loading loading-bars loading-xs"></span>
               ) : (
                 "Logout"

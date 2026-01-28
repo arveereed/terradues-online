@@ -47,31 +47,8 @@ const duesBreakdown = [
 ] as const;
 
 export default function Home({ userName = "Brylle" }: Props) {
-  const { signOut } = useClerk();
-  const [isLoading, setIsLoading] = useState(false);
-
-  const handleSignOut = async () => {
-    setIsLoading(true);
-    try {
-      await signOut();
-      // Redirect to your desired page
-      // setUser(null);
-    } catch (err) {
-      // See https://clerk.com/docs/custom-flows/error-handling
-      // for more info on error handling
-      console.error(JSON.stringify(err, null, 2));
-      setIsLoading(false);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
-    <AppShell
-      userName={userName}
-      onLogout={handleSignOut}
-      isLoggingOut={isLoading}
-    >
+    <AppShell>
       {/* Content grid */}
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Left column (Hero + Welcome) */}
