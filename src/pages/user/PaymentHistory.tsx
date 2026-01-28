@@ -202,8 +202,6 @@ export default function PaymentHistory({
     { dateLabel: "Oct 20, 2024, Sun", status: "Unpaid", amount: 300 },
     { dateLabel: "Sep 20, 2024, Fri", status: "Unpaid", amount: 300 },
   ],
-  isLoggingOut,
-  onLogout,
 }: Props) {
   // ✅ pagination state
   const [page, setPage] = useState(1);

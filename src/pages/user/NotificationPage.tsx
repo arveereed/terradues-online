@@ -18,9 +18,6 @@ type Props = {
 };
 
 export default function NotificationPage({
-  userName = "Brylle",
-  isLoggingOut,
-  onLogout,
   notifications = [
     {
       id: "1",
