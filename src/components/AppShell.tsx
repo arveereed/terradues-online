@@ -238,7 +238,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Main Content */}
         <main className="w-full">
-          <div className="pointer-events-none fixed inset-x-0 top-0 h-64 bg-linear-to-b from-emerald-100/70 to-transparent" />
+          <div className="pointer-events-none fixed inset-x-0 top-0 h-64 bg-linear-to-b from-emerald-50/70 to-transparent" />
           {children}
         </main>
       </div>
