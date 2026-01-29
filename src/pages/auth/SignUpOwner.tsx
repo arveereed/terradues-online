@@ -35,7 +35,7 @@ export default function SignUpOwner() {
     block: "",
     lot: "",
     familyMembers: "",
-    occupied: false,
+    occupancyType: [],
     forRent: false,
     password: "",
     confirmPassword: "",
@@ -108,9 +108,8 @@ export default function SignUpOwner() {
       errors.familyMembers = "Family members is required";
     }
 
-    // Boolean fields
-    if (!form.occupied && !form.forRent) {
-      errors.occupied = "Occupancy Type is required";
+    if (form.occupancyType.length === 0) {
+      errors.occupancyType = "Please select at least one occupancy type";
     }
 
     // Password
@@ -253,7 +252,7 @@ export default function SignUpOwner() {
           block: form.block,
           lot: form.lot,
           familyMembers: form.familyMembers,
-          occupied: form.occupied,
+          occupancyType: form.occupancyType,
           forRent: form.forRent,
           picture: imageUrl,
           document: docUrl,
@@ -299,8 +298,10 @@ export default function SignUpOwner() {
     );
   }
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
+    const { name, value, type, checked } = e.target as HTMLInputElement;
 
     setForm((prev) => ({
       ...prev,
@@ -564,29 +565,48 @@ export default function SignUpOwner() {
             )}
           </div>
 
-          {/* Occupancy */}
+          {/* Occupancy Type */}
           <div className="md:col-span-2 flex flex-wrap gap-4 text-sm text-gray-700">
             <span className="font-medium">Occupancy Type:</span>
-            <label className="flex items-center gap-1">
+
+            <label className="flex items-center gap-1 cursor-pointer">
               <input
                 type="checkbox"
-                name="occupied"
-                checked={form.occupied}
-                onChange={handleChange}
+                value="Occupied"
+                checked={form.occupancyType.includes("Occupied")}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setForm((prev) => ({
+                    ...prev,
+                    occupancyType: e.target.checked
+                      ? [...prev.occupancyType, value]
+                      : prev.occupancyType.filter((v) => v !== value),
+                  }));
+                }}
               />
               Occupied
             </label>
-            <label className="flex items-center gap-1">
+
+            <label className="flex items-center gap-1 cursor-pointer">
               <input
                 type="checkbox"
-                name="forRent"
-                checked={form.forRent}
-                onChange={handleChange}
+                value="For Rent"
+                checked={form.occupancyType.includes("For Rent")}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setForm((prev) => ({
+                    ...prev,
+                    occupancyType: e.target.checked
+                      ? [...prev.occupancyType, value]
+                      : prev.occupancyType.filter((v) => v !== value),
+                  }));
+                }}
               />
               For Rent
             </label>
           </div>
-          {errors.occupied && (
+
+          {errors.occupancyType && (
             <p className="md:col-span-2 text-xs text-red-500">
               Please select occupancy type
             </p>

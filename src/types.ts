@@ -12,7 +12,8 @@ export type UserDataSignUpOwnerType = {
   lot: string;
 
   familyMembers: string;
-  occupied: boolean;
+  occupancyType: string[];
+
   forRent: boolean;
 
   picture: string | null;
@@ -21,7 +22,7 @@ export type UserDataSignUpOwnerType = {
 
 export type UserDataSignUpRenterType = Omit<
   UserDataSignUpOwnerType,
-  "familyMembers" | "occupied" | "forRent"
+  "familyMembers" | "occupancyType" | "forRent"
 > & {
   ownerName: string;
   ownerContactNumber: string;
