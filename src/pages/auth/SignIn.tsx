@@ -46,6 +46,8 @@ export default function SignIn() {
         err.errors?.[0]?.code === "form_conditional_param_missing"
       ) {
         setError("Email or password is empty.");
+      } else if (err.errors?.[0]?.code === "too_many_requests") {
+        setError(err.errors?.[0]?.message);
       }
     } finally {
       setIsLoading(false);

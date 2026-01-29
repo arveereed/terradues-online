@@ -16,45 +16,55 @@ import SettingsPage from "./pages/user/SettingsPage";
 
 function App() {
   const { user: clerkUser, isLoaded, isSignedIn } = useUser();
-  const { isLoading } = useFirestoreUser(clerkUser?.id as string);
+  const { data: user, isLoading } = useFirestoreUser(clerkUser?.id as string);
+
+  const isAdmin = import.meta.env.VITE_ADMIN_EMAIL === user?.email;
 
   if (!isLoaded || isLoading) return <AppLoader />;
 
   return (
     <Routes>
       {/* Authentication */}
-      <Route path="/" element={isSignedIn ? <Home /> : <OnboardScreen />} />
-      <Route path="/sign-in" element={isSignedIn ? <Home /> : <SignIn />} />
+      <Route
+        path="/"
+        element={isSignedIn && !isAdmin ? <Home /> : <OnboardScreen />}
+      />
+      <Route
+        path="/sign-in"
+        element={isSignedIn && !isAdmin ? <Home /> : <SignIn />}
+      />
       <Route
         path="/residency-type=homeowner"
-        element={isSignedIn ? <Home /> : <SignUpOwner />}
+        element={isSignedIn && !isAdmin ? <Home /> : <SignUpOwner />}
       />
       <Route
         path="/residency-type=renter"
-        element={isSignedIn ? <Home /> : <SignUpRenter />}
+        element={isSignedIn && !isAdmin ? <Home /> : <SignUpRenter />}
       />
       <Route
         path="/residency-type"
-        element={isSignedIn ? <Home /> : <ResidencySelection />}
+        element={isSignedIn && !isAdmin ? <Home /> : <ResidencySelection />}
       />
       <Route
         path="/forgot-password"
-        element={isSignedIn ? <Home /> : <ForgotPassword />}
+        element={isSignedIn && !isAdmin ? <Home /> : <ForgotPassword />}
       />
 
       {/* User Page */}
       <Route
         path="/payment-history"
-        element={isSignedIn ? <PaymentHistory /> : <SignIn />}
+        element={isSignedIn && !isAdmin ? <PaymentHistory /> : <SignIn />}
       />
       <Route
         path="/notification"
-        element={isSignedIn ? <NotificationPage /> : <SignIn />}
+        element={isSignedIn && !isAdmin ? <NotificationPage /> : <SignIn />}
       />
       <Route
         path="/settings"
-        element={isSignedIn ? <SettingsPage /> : <SignIn />}
+        element={isSignedIn && !isAdmin ? <SettingsPage /> : <SignIn />}
       />
+
+      {/* Admin Page */}
 
       {/* 404 – MUST be last */}
       <Route path="*" element={<ErrorNotFound />} />

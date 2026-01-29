@@ -205,6 +205,8 @@ export default function SignUpOwner() {
         setError("Passwords must be 8 characters or more.");
       } else if (err.errors?.[0]?.code === "form_password_pwned") {
         setError("Please use a different password.");
+      } else if (err.errors?.[0]?.code === "too_many_requests") {
+        setError(err.errors?.[0]?.message);
       }
       setIsLoading(false);
       console.log(JSON.stringify(err, null, 2));
