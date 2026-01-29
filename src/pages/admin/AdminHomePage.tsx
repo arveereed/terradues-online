@@ -1,7 +1,5 @@
-import AppShell from "../../components/AppShell";
-
 const AdminHomePage = () => {
-  return <AppShell>AdminHomePage</AppShell>;
+  return <div>AdminHomePage</div>;
 };
 
 export default AdminHomePage;

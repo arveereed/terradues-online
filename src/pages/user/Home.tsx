@@ -6,7 +6,6 @@ import {
   Leaf,
   ArrowRight,
 } from "lucide-react";
-import AppShell from "../../components/AppShell";
 
 type Props = {
   userName?: string; // optional if you want to pass name from Clerk
@@ -46,7 +45,7 @@ const duesBreakdown = [
 
 export default function Home({ userName = "Brylle" }: Props) {
   return (
-    <AppShell>
+    <div>
       {/* Content grid */}
       <section className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Left column (Hero + Welcome) */}
@@ -142,6 +141,6 @@ export default function Home({ userName = "Brylle" }: Props) {
 
       {/* Bottom spacing */}
       <div className="h-10" />
-    </AppShell>
+    </div>
   );
 }

@@ -15,7 +15,7 @@ export type SettingsSectionKey =
   | "about"
   | "legal";
 
-export default function SettingsPage() {
+export default function AdminSettingsPage() {
   const [active, setActive] = useState<SettingsSectionKey>("personal");
 
   return (

@@ -1,4 +1,3 @@
-import AppShell from "../../components/AppShell";
 import { Clock, Dot } from "lucide-react";
 
 type NotificationItem = {
@@ -62,7 +61,7 @@ export default function NotificationPage({
   ],
 }: Props) {
   return (
-    <AppShell>
+    <div>
       {/* Page header */}
       <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200 sm:p-7">
         <div className="flex items-center justify-between gap-3">
@@ -159,6 +158,6 @@ export default function NotificationPage({
       </section>
 
       <div className="h-10" />
-    </AppShell>
+    </div>
   );
 }

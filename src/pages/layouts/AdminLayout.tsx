@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, Outlet } from "react-router-dom";
 import {
   Menu,
   X,
@@ -18,14 +18,14 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  { label: "Home", to: "/", icon: HomeIcon },
-  { label: "Payment History", to: "/payment-history", icon: Wallet },
-  { label: "Notification", to: "/notification", icon: Megaphone },
+  { label: "Home", to: "/admin", icon: HomeIcon },
+  { label: "List Of Residents", to: "/admin/users", icon: Wallet },
+  { label: "Payment Status", to: "/admin/payments", icon: Megaphone },
   // { label: "Reminders", to: "/reminders", icon: Bell },
-  { label: "Settings", to: "/settings", icon: Settings },
+  { label: "Settings", to: "/admin/settings", icon: Settings },
 ];
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
+export default function AdminLayout() {
   const [open, setOpen] = useState(false);
   const userName = "Bryle B. Milliomeda";
 
@@ -239,7 +239,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {/* Main Content */}
         <main className="w-full">
           <div className="pointer-events-none fixed inset-x-0 top-0 h-64 bg-linear-to-b from-emerald-50/70 to-transparent" />
-          {children}
+          <Outlet />
         </main>
       </div>
     </div>

@@ -17,6 +17,11 @@ import AdminHomePage from "./pages/admin/AdminHomePage";
 
 import RequireAuth from "./routes/RequireAuth";
 import RequireGuest from "./routes/RequireGuest";
+import AdminLayout from "./pages/layouts/AdminLayout";
+import UserLayout from "./pages/layouts/UserLayout";
+import AdminListOfResidentsPage from "./pages/admin/AdminListOfResidentsPage";
+import AdminPaymentStatusPage from "./pages/admin/AdminPaymentStatusPage";
+import AdminSettingsPage from "./pages/admin/AdminSettingsPage";
 
 function App() {
   const { user: clerkUser, isLoaded, isSignedIn } = useUser();
@@ -25,15 +30,15 @@ function App() {
   const adminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
   const isAdmin = !!adminEmail && user?.email === adminEmail;
 
+  const isGuest = !isSignedIn;
   const isUser = isSignedIn && !isAdmin;
   const isAdminUser = isSignedIn && isAdmin;
-  const isGuest = !isSignedIn;
 
   if (!isLoaded || isLoading) return <AppLoader />;
 
   return (
     <Routes>
-      {/* SINGLE "/" route that decides where to go */}
+      {/* "/" decides where to go */}
       <Route
         path="/"
         element={
@@ -42,7 +47,7 @@ function App() {
           ) : isAdminUser ? (
             <Navigate to="/admin" replace />
           ) : (
-            <Home />
+            <Navigate to="/app" replace />
           )
         }
       />
@@ -56,23 +61,25 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
       </Route>
 
-      {/* Signed-in USER routes */}
+      {/* USER routes */}
       <Route element={<RequireAuth isAllowed={isUser} redirectTo="/sign-in" />}>
-        <Route path="/payment-history" element={<PaymentHistory />} />
-        <Route path="/notification" element={<NotificationPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/app" element={<UserLayout />}>
+          <Route index element={<Home />} />
+          <Route path="payment-history" element={<PaymentHistory />} />
+          <Route path="notification" element={<NotificationPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+        </Route>
       </Route>
 
-      {/* Signed-in ADMIN routes */}
+      {/* ADMIN routes */}
       <Route element={<RequireAuth isAllowed={isAdminUser} redirectTo="/" />}>
-        <Route path="/admin" element={<AdminHomePage />} />
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<AdminHomePage />} />
+          <Route path="users" element={<AdminListOfResidentsPage />} />
+          <Route path="payments" element={<AdminPaymentStatusPage />} />
+          <Route path="settings" element={<AdminSettingsPage />} />
+        </Route>
       </Route>
-
-      {/* If someone types /admin/anything */}
-      <Route
-        path="/admin/*"
-        element={<Navigate to={isAdminUser ? "/admin" : "/"} replace />}
-      />
 
       {/* 404 */}
       <Route path="*" element={<ErrorNotFound />} />
