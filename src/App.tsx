@@ -5,7 +5,6 @@ import ResidencySelection from "./pages/auth/ResidencySelection";
 import SignUpOwner from "./pages/auth/SignUpOwner";
 import SignUpRenter from "./pages/auth/SignUpRenter";
 import { useUser } from "@clerk/clerk-react";
-import { useFirestoreUser } from "./features/auth/hooks/useFirestoreUser";
 import AppLoader from "./components/AppLoader";
 import Home from "./pages/user/Home";
 import ErrorNotFound from "./pages/ErrorNotFound";
@@ -25,16 +24,16 @@ import AdminSettingsPage from "./pages/admin/AdminSettingsPage";
 
 function App() {
   const { user: clerkUser, isLoaded, isSignedIn } = useUser();
-  const { data: user, isLoading } = useFirestoreUser(clerkUser?.id as string);
 
   const adminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
-  const isAdmin = !!adminEmail && user?.email === adminEmail;
+  const isAdmin =
+    !!adminEmail && clerkUser?.emailAddresses[0].emailAddress === adminEmail;
 
   const isGuest = !isSignedIn;
   const isUser = isSignedIn && !isAdmin;
   const isAdminUser = isSignedIn && isAdmin;
 
-  if (!isLoaded || isLoading) return <AppLoader />;
+  if (!isLoaded) return <AppLoader />;
 
   return (
     <Routes>

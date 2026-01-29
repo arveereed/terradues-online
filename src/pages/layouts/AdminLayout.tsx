@@ -3,11 +3,11 @@ import { Link, Outlet } from "react-router-dom";
 import {
   Menu,
   X,
-  Home as HomeIcon,
-  Wallet,
-  Megaphone,
+  Home,
   Settings,
   LogOut,
+  Users,
+  CreditCard,
 } from "lucide-react";
 import { useClerk } from "@clerk/clerk-react";
 
@@ -18,9 +18,9 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  { label: "Home", to: "/admin", icon: HomeIcon },
-  { label: "List Of Residents", to: "/admin/users", icon: Wallet },
-  { label: "Payment Status", to: "/admin/payments", icon: Megaphone },
+  { label: "Home", to: "/admin", icon: Home },
+  { label: "List Of Residents", to: "/admin/users", icon: Users },
+  { label: "Payment Status", to: "/admin/payments", icon: CreditCard },
   // { label: "Reminders", to: "/reminders", icon: Bell },
   { label: "Settings", to: "/admin/settings", icon: Settings },
 ];
@@ -183,7 +183,7 @@ export default function AdminLayout() {
       <div className="relative mx-auto w-full max-w-6xl px-4 py-6 sm:py-10 lg:flex lg:gap-6">
         {/* Desktop Sidebar */}
         <aside className="hidden lg:block lg:w-72">
-          <div className="sticky top-6 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200">
+          <div className="min-h-[90vh] sticky top-6 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200 ">
             <div className="flex items-center gap-2">
               <div className="grid size-10 place-items-center rounded-2xl bg-emerald-600 text-white shadow-sm">
                 <span className="text-sm font-bold">TD</span>

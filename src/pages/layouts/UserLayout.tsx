@@ -183,7 +183,7 @@ export default function UserLayout() {
       <div className="relative mx-auto w-full max-w-6xl px-4 py-6 sm:py-10 lg:flex lg:gap-6">
         {/* Desktop Sidebar */}
         <aside className="hidden lg:block lg:w-72">
-          <div className="sticky top-6 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200">
+          <div className="min-h-[90vh] sticky top-6 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200">
             <div className="flex items-center gap-2">
               <div className="grid size-10 place-items-center rounded-2xl bg-emerald-600 text-white shadow-sm">
                 <span className="text-sm font-bold">TD</span>
