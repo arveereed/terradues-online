@@ -1,13 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  Plus,
-  Pencil,
-  Search,
-  ChevronDown,
-  UserRound,
-  Badge,
-} from "lucide-react";
+import { Plus, Pencil, Search, ChevronDown, UserRound } from "lucide-react";
 import AppInput from "../../components/AppInput";
 
 type Resident = {
