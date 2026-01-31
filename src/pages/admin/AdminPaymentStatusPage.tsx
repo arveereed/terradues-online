@@ -300,7 +300,7 @@ export default function AdminPaymentsPage() {
       {/* Header */}
       <div className="flex items-end justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+          <p className="lg:hidden text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
             Payments
           </p>
           <h1 className="text-2xl font-black tracking-tight text-zinc-900">
