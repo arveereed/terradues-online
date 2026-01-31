@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Pencil, Search, ChevronDown, UserRound } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Search,
+  ChevronDown,
+  UserRound,
+  Badge,
+} from "lucide-react";
+import AppInput from "../../components/AppInput";
 
 type Resident = {
   id: string;
@@ -246,6 +254,18 @@ export default function AdminResidentsPage() {
 
   return (
     <div className="space-y-4">
+      {/* Header */}
+      <div className="lg:hidden flex items-end justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+            Residents
+          </p>
+          <h1 className="text-2xl font-black tracking-tight text-zinc-900">
+            List of Residents
+          </h1>
+        </div>
+      </div>
+
       {/* Actions row */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[auto_auto_1fr] lg:items-center">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -280,11 +300,10 @@ export default function AdminResidentsPage() {
             size={18}
             className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400"
           />
-          <input
+          <AppInput
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search name, email, lot..."
-            className="h-11 w-full rounded-2xl border border-zinc-200 bg-white pl-11 pr-4 text-sm font-semibold text-zinc-900 outline-none placeholder:text-zinc-400 focus:border-emerald-300 focus:ring-4 focus:ring-emerald-100"
           />
         </div>
       </div>
