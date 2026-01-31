@@ -298,9 +298,9 @@ export default function AdminPaymentsPage() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-end justify-between gap-3">
+      <div className="lg:hidden flex items-end justify-between gap-3">
         <div>
-          <p className="lg:hidden text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
             Payments
           </p>
           <h1 className="text-2xl font-black tracking-tight text-zinc-900">
