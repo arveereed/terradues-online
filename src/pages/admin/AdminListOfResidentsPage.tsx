@@ -1,6 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Pencil, Search, ChevronDown, UserRound } from "lucide-react";
+import {
+  ChevronDown,
+  Pencil,
+  Plus,
+  Search,
+  UserRound,
+  Check,
+} from "lucide-react";
+import {
+  Listbox,
+  ListboxButton,
+  ListboxOption,
+  ListboxOptions,
+  Transition,
+} from "@headlessui/react";
 import AppInput from "../../components/AppInput";
 
 type Resident = {
@@ -264,7 +278,7 @@ export default function AdminResidentsPage() {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Link
             to="/admin/users/new"
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-extrabold text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-200"
+            className="cursor-pointer inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-extrabold text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-200"
           >
             <Plus size={18} />
             Add New
@@ -278,7 +292,7 @@ export default function AdminResidentsPage() {
             className={cx(
               "inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-extrabold shadow-sm ring-1 focus:outline-none",
               canEdit
-                ? "bg-white text-zinc-900 ring-zinc-200 hover:bg-zinc-50 active:bg-zinc-100 focus:ring-4 focus:ring-emerald-200"
+                ? "cursor-pointer bg-white text-zinc-900 ring-zinc-200 hover:bg-zinc-50 active:bg-zinc-100 focus:ring-4 focus:ring-emerald-200"
                 : "bg-zinc-100 text-zinc-400 ring-zinc-200 cursor-not-allowed",
             )}
           >
@@ -295,22 +309,22 @@ export default function AdminResidentsPage() {
           />
           <AppInput
             value={query}
+            className="h-12 w-full pl-11 pr-23"
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search name, email, lot..."
           />
         </div>
       </div>
 
-      {/* Phase + Block bars (remembered) */}
-      <div className="space-y-2">
-        <SelectBar
+      {/* Phase + Block (HeadlessUI modern) */}
+      <div className="grid gap-2 sm:grid-cols-2">
+        <SelectListbox
           label="Phase"
           value={phase}
           options={phases}
           onChange={(v) => {
             setPhase(v);
 
-            // choose first valid block for that phase (or keep remembered if exists)
             const nextBlocks = Array.from(
               new Set(
                 residents.filter((r) => r.phase === v).map((r) => r.block),
@@ -324,7 +338,6 @@ export default function AdminResidentsPage() {
 
             setBlock(nextBlock);
 
-            // restore expanded
             const rememberedLot = readExpandedLot(v, nextBlock);
             setExpandedLot(rememberedLot);
 
@@ -332,7 +345,7 @@ export default function AdminResidentsPage() {
           }}
         />
 
-        <SelectBar
+        <SelectListbox
           label="Block"
           value={block}
           options={blocks}
@@ -425,7 +438,7 @@ export default function AdminResidentsPage() {
                       <div className="mt-3">
                         <Link
                           to="/admin/users/new"
-                          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-emerald-700"
+                          className="cursor-pointer inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-emerald-700"
                         >
                           <Plus size={18} />
                           Add New
@@ -445,7 +458,10 @@ export default function AdminResidentsPage() {
   );
 }
 
-function SelectBar({
+/* -----------------------
+ * Modern Listbox Select
+ * ----------------------*/
+function SelectListbox({
   label,
   value,
   options,
@@ -458,29 +474,66 @@ function SelectBar({
 }) {
   return (
     <div className="relative">
-      <label className="sr-only">{label}</label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={cx(
-          "h-11 w-full appearance-none rounded-2xl px-4 pr-11",
-          "bg-linear-to-r from-emerald-600 to-emerald-700",
-          "text-sm font-extrabold text-white shadow-sm",
-          "ring-1 ring-emerald-700/30 outline-none",
-          "focus:ring-4 focus:ring-emerald-200/50",
-        )}
-      >
-        {options.map((o) => (
-          <option key={o} value={o} className="text-zinc-900">
-            {o}
-          </option>
-        ))}
-      </select>
+      <p className="sr-only">{label}</p>
 
-      <ChevronDown
-        size={18}
-        className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-white/90"
-      />
+      <Listbox value={value} onChange={onChange}>
+        <ListboxButton
+          className={cx(
+            "cursor-pointer group flex h-12 w-full items-center justify-between rounded-2xl px-4",
+            "bg-linear-to-r from-emerald-600 to-emerald-700 text-white",
+            "text-sm font-extrabold shadow-sm ring-1 ring-emerald-700/30 outline-none",
+            "focus:ring-4 focus:ring-emerald-200/60",
+          )}
+        >
+          <span className="text-sm font-extrabold tracking-wide">{value}</span>
+          <ChevronDown
+            size={18}
+            className="text-white/90 transition group-hover:text-white"
+          />
+        </ListboxButton>
+
+        <Transition
+          as={Fragment}
+          enter="transition ease-out duration-120"
+          enterFrom="opacity-0 translate-y-1"
+          enterTo="opacity-100 translate-y-0"
+          leave="transition ease-in duration-100"
+          leaveFrom="opacity-100 translate-y-0"
+          leaveTo="opacity-0 translate-y-1"
+        >
+          <ListboxOptions className="absolute z-40 mt-2 w-full overflow-hidden rounded-2xl border border-emerald-200 bg-white p-1 shadow-2xl outline-none ring-1 ring-black/5">
+            {options.map((opt) => (
+              <ListboxOption
+                key={opt}
+                value={opt}
+                className={({ active }) =>
+                  cx(
+                    "cursor-pointer select-none rounded-xl px-3 py-2.5",
+                    "flex items-center justify-between gap-3",
+                    "text-sm font-bold",
+                    active
+                      ? "bg-emerald-100 text-emerald-950"
+                      : "text-zinc-900",
+                  )
+                }
+              >
+                {({ selected }) => (
+                  <>
+                    <span className="whitespace-normal leading-5">{opt}</span>
+                    {selected ? (
+                      <span className="grid size-7 place-items-center rounded-lg bg-emerald-600 text-white shadow-sm">
+                        <Check size={16} />
+                      </span>
+                    ) : (
+                      <span className="size-7" />
+                    )}
+                  </>
+                )}
+              </ListboxOption>
+            ))}
+          </ListboxOptions>
+        </Transition>
+      </Listbox>
     </div>
   );
 }
@@ -539,14 +592,14 @@ function ResidentCard({ resident }: { resident: Resident }) {
           <div className="mt-4 flex flex-col gap-2 sm:flex-row">
             <Link
               to={`/admin/users/${resident.id}`}
-              className="inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-black"
+              className="cursor-pointer inline-flex items-center justify-center rounded-2xl bg-zinc-900 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-black"
             >
               View Profile
             </Link>
 
             <Link
               to={`/admin/users/${resident.id}/edit`}
-              className="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-emerald-700"
+              className="cursor-pointer inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-emerald-700"
             >
               Edit
             </Link>

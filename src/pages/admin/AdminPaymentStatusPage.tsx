@@ -1,5 +1,12 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { Dialog, Listbox, Transition } from "@headlessui/react";
+import {
+  Dialog,
+  Listbox,
+  ListboxButton,
+  ListboxOption,
+  ListboxOptions,
+  Transition,
+} from "@headlessui/react";
 import { Search, ChevronDown, Check, SlidersHorizontal, X } from "lucide-react";
 import AppInput from "../../components/AppInput";
 
@@ -291,8 +298,6 @@ export default function AdminPaymentsPage() {
 
   const updateStatus = (id: string, next: PaymentStatus) => {
     setStatusById((prev) => ({ ...prev, [id]: next }));
-    // ✅ later connect firebase update:
-    // await updateDoc(doc(db,"payments",id), { status: next })
   };
 
   return (
@@ -319,7 +324,7 @@ export default function AdminPaymentsPage() {
         <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
-              <SelectBar
+              <SelectListbox
                 label="Phase"
                 value={phase}
                 options={phases}
@@ -333,7 +338,8 @@ export default function AdminPaymentsPage() {
                   setBlock(nextBlocks[0] ?? "Block 1");
                 }}
               />
-              <SelectBar
+
+              <SelectListbox
                 label="Block"
                 value={block}
                 options={blocks}
@@ -603,7 +609,9 @@ function TdStrong({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SelectBar({
+/* ---------- Phase/Block LISTBOX (replaces <select>) ---------- */
+
+function SelectListbox({
   label,
   value,
   options,
@@ -616,29 +624,70 @@ function SelectBar({
 }) {
   return (
     <div className="relative">
-      <label className="sr-only">{label}</label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={cx(
-          "cursor-pointer h-12 w-full appearance-none rounded-2xl px-4 pr-11",
-          "bg-linear-to-r from-emerald-600 to-emerald-700",
-          "text-sm font-extrabold text-white shadow-sm",
-          "ring-1 ring-emerald-700/30 outline-none",
-          "focus:ring-4 focus:ring-emerald-200/50",
-        )}
-      >
-        {options.map((o) => (
-          <option key={o} value={o} className="text-zinc-900">
-            {o}
-          </option>
-        ))}
-      </select>
+      <p className="sr-only">{label}</p>
 
-      <ChevronDown
-        size={18}
-        className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-white/90"
-      />
+      <Listbox value={value} onChange={onChange}>
+        <ListboxButton
+          className={cx(
+            "cursor-pointer group flex h-12 w-full items-center justify-between rounded-2xl px-4",
+            "bg-linear-to-r from-emerald-600 to-emerald-700 text-white",
+            "text-sm font-extrabold shadow-sm ring-1 ring-emerald-700/30 outline-none",
+            "focus:ring-4 focus:ring-emerald-200/60",
+          )}
+        >
+          <span className="text-sm font-extrabold tracking-wide">{value}</span>
+          <ChevronDown size={18} className="text-white/90" />
+        </ListboxButton>
+
+        <Transition
+          as={Fragment}
+          enter="transition ease-out duration-120"
+          enterFrom="opacity-0 translate-y-1"
+          enterTo="opacity-100 translate-y-0"
+          leave="transition ease-in duration-100"
+          leaveFrom="opacity-100 translate-y-0"
+          leaveTo="opacity-0 translate-y-1"
+        >
+          <ListboxOptions
+            className={cx(
+              "absolute z-40 mt-2 w-full rounded-2xl border border-emerald-200 bg-white p-1 shadow-2xl outline-none",
+              "ring-1 ring-black/5",
+            )}
+          >
+            {options.map((opt) => (
+              <ListboxOption
+                key={opt}
+                value={opt}
+                className={({ active }) =>
+                  cx(
+                    "cursor-pointer select-none rounded-xl px-3 py-2.5",
+                    "flex items-center justify-between gap-3",
+                    "text-sm font-bold",
+                    active
+                      ? "bg-emerald-100 text-emerald-950"
+                      : "text-zinc-900",
+                  )
+                }
+              >
+                {({ selected }) => (
+                  <>
+                    {/* show full label (no forced truncation) */}
+                    <span className="whitespace-normal leading-5">{opt}</span>
+
+                    {selected ? (
+                      <span className="grid size-7 place-items-center rounded-lg bg-emerald-600 text-white shadow-sm">
+                        <Check size={16} />
+                      </span>
+                    ) : (
+                      <span className="size-7" />
+                    )}
+                  </>
+                )}
+              </ListboxOption>
+            ))}
+          </ListboxOptions>
+        </Transition>
+      </Listbox>
     </div>
   );
 }
@@ -659,7 +708,7 @@ function StatusSelectModern({
   return (
     <div className={cx("relative", fullWidth ? "w-full" : "w-[190px]")}>
       <Listbox value={value} onChange={onChange}>
-        <Listbox.Button
+        <ListboxButton
           className={cx(
             "cursor-pointer group flex h-10 w-full items-center justify-between rounded-xl px-3",
             "ring-1 shadow-sm outline-none transition",
@@ -674,7 +723,7 @@ function StatusSelectModern({
             size={16}
             className="opacity-70 transition group-hover:opacity-100"
           />
-        </Listbox.Button>
+        </ListboxButton>
 
         <Transition
           as={Fragment}
@@ -685,11 +734,11 @@ function StatusSelectModern({
           leaveFrom="opacity-100 translate-y-0"
           leaveTo="opacity-0 translate-y-1"
         >
-          <Listbox.Options className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border border-emerald-100 bg-white p-1 shadow-xl outline-none">
+          <ListboxOptions className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border border-emerald-100 bg-white p-1 shadow-xl outline-none">
             {STATUS_OPTIONS.map((opt) => {
               const optPaid = opt === "Paid";
               return (
-                <Listbox.Option
+                <ListboxOption
                   key={opt}
                   value={opt}
                   className={({ active }) =>
@@ -711,10 +760,10 @@ function StatusSelectModern({
                       )}
                     </>
                   )}
-                </Listbox.Option>
+                </ListboxOption>
               );
             })}
-          </Listbox.Options>
+          </ListboxOptions>
         </Transition>
       </Listbox>
     </div>
@@ -789,7 +838,6 @@ function FilterModal({
   return (
     <Transition appear show={open} as={Fragment}>
       <Dialog as="div" className="relative z-50" onClose={onClose}>
-        {/* Backdrop */}
         <Transition.Child
           as={Fragment}
           enter="ease-out duration-150"
@@ -802,7 +850,6 @@ function FilterModal({
           <div className="fixed inset-0 bg-zinc-900/40 backdrop-blur-sm" />
         </Transition.Child>
 
-        {/* Panel */}
         <div className="fixed inset-0 overflow-y-auto">
           <div className="flex min-h-full items-end justify-center p-3 sm:items-center sm:p-6">
             <Transition.Child
@@ -815,7 +862,6 @@ function FilterModal({
               leaveTo="opacity-0 translate-y-2 sm:translate-y-0 sm:scale-[0.98]"
             >
               <Dialog.Panel className="w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-xl ring-1 ring-emerald-100">
-                {/* Header */}
                 <div className="flex items-start justify-between gap-3 border-b border-emerald-100 p-5">
                   <div>
                     <Dialog.Title className="text-lg font-black tracking-tight text-zinc-900">
@@ -830,12 +876,12 @@ function FilterModal({
                     onClick={onClose}
                     className="cursor-pointer grid size-10 place-items-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 active:bg-emerald-200"
                     aria-label="Close"
+                    type="button"
                   >
                     <X size={18} />
                   </button>
                 </div>
 
-                {/* Body */}
                 <div className="space-y-5 p-5">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
@@ -890,7 +936,6 @@ function FilterModal({
                   </div>
                 </div>
 
-                {/* Footer */}
                 <div className="flex items-center justify-between gap-3 border-t border-emerald-100 bg-white p-5">
                   <div className="text-xs font-semibold text-zinc-500">
                     Active filters:{" "}
@@ -932,7 +977,6 @@ function FilterChip({
   onClick: () => void;
   children: React.ReactNode;
 }) {
-  // TerraDues theme (emerald primary)
   return (
     <button
       type="button"
