@@ -168,12 +168,13 @@ export default function UserLayout() {
               onClick={handleSignOut}
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-gray-400 cursor-pointer"
             >
-              <LogOut size={18} />
               {isLoading ? (
                 <span className="loading loading-bars loading-xs"></span>
               ) : (
-                "Logout"
+                <LogOut size={18} />
               )}
+
+              {isLoading ? "Logging out..." : "Logout"}
             </button>
           </div>
         </aside>
@@ -226,12 +227,13 @@ export default function UserLayout() {
               onClick={handleSignOut}
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed cursor-pointer disabled:bg-gray-400"
             >
-              <LogOut size={18} />
               {isLoading ? (
                 <span className="loading loading-bars loading-xs"></span>
               ) : (
-                "Logout"
+                <LogOut size={18} />
               )}
+
+              {isLoading ? "Logging out..." : "Logout"}
             </button>
           </div>
         </aside>

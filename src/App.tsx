@@ -1,23 +1,27 @@
 import { Route, Routes, Navigate } from "react-router-dom";
+import { useUser } from "@clerk/clerk-react";
 import OnboardScreen from "./pages/auth/OnboardScreen";
 import SignIn from "./pages/auth/SignIn";
 import ResidencySelection from "./pages/auth/ResidencySelection";
 import SignUpOwner from "./pages/auth/SignUpOwner";
 import SignUpRenter from "./pages/auth/SignUpRenter";
-import { useUser } from "@clerk/clerk-react";
-import AppLoader from "./components/AppLoader";
-import Home from "./pages/user/Home";
-import ErrorNotFound from "./pages/ErrorNotFound";
 import ForgotPassword from "./pages/auth/ForgotPassword";
-import PaymentHistory from "./pages/user/PaymentHistory";
-import NotificationPage from "./pages/user/NotificationPage";
-import SettingsPage from "./pages/user/SettingsPage";
-import AdminHomePage from "./pages/admin/AdminHomePage";
+import AppLoader from "./components/AppLoader";
+import ErrorNotFound from "./pages/ErrorNotFound";
 
 import RequireAuth from "./routes/RequireAuth";
 import RequireGuest from "./routes/RequireGuest";
 import AdminLayout from "./pages/layouts/AdminLayout";
 import UserLayout from "./pages/layouts/UserLayout";
+
+// User Pages
+import HomePage from "./pages/user/HomePage";
+import PaymentHistoryPage from "./pages/user/PaymentHistoryPage";
+import NotificationPage from "./pages/user/NotificationPage";
+import SettingsPage from "./pages/user/SettingsPage";
+
+// Admin Pages
+import AdminHomePage from "./pages/admin/AdminHomePage";
 import AdminListOfResidentsPage from "./pages/admin/AdminListOfResidentsPage";
 import AdminPaymentStatusPage from "./pages/admin/AdminPaymentStatusPage";
 import AdminSettingsPage from "./pages/admin/AdminSettingsPage";
@@ -68,8 +72,8 @@ function App() {
       {/* USER routes */}
       <Route element={<RequireAuth isAllowed={isUser} redirectTo="/sign-in" />}>
         <Route path="/app" element={<UserLayout />}>
-          <Route index element={<Home />} />
-          <Route path="payment-history" element={<PaymentHistory />} />
+          <Route index element={<HomePage />} />
+          <Route path="payment-history" element={<PaymentHistoryPage />} />
           <Route path="notification" element={<NotificationPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>

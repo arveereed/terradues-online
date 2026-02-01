@@ -89,7 +89,7 @@ function fullName(r: PaymentRow) {
 
 const STATUS_OPTIONS: PaymentStatus[] = ["Paid", "Not Paid"];
 
-export default function AdminPaymentsPage() {
+export default function AdminPaymentStatusPage() {
   // ✅ demo data (replace with your query)
   const rows = useMemo<PaymentRow[]>(
     () => [
