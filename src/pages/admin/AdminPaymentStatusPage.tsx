@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   Dialog,
   Listbox,
@@ -6,8 +6,17 @@ import {
   ListboxOption,
   ListboxOptions,
   Transition,
+  TransitionChild,
 } from "@headlessui/react";
-import { Search, ChevronDown, Check, SlidersHorizontal, X } from "lucide-react";
+import {
+  Search,
+  ChevronDown,
+  Check,
+  SlidersHorizontal,
+  X,
+  ImagePlus,
+  Trash2,
+} from "lucide-react";
 import AppInput from "../../components/AppInput";
 
 type PaymentStatus = "Paid" | "Not Paid";
@@ -209,6 +218,39 @@ export default function AdminPaymentsPage() {
     () => Object.fromEntries(rows.map((r) => [r.id, r.status])),
   );
 
+  // ✅ photo state (TEMP only): id -> objectURL
+  const [photoById, setPhotoById] = useState<Record<string, string>>({});
+  const urlsRef = useRef<Record<string, string>>({});
+
+  const setPhoto = (id: string, nextUrl: string | null) => {
+    // revoke previous url for this id
+    const prevUrl = urlsRef.current[id];
+    if (prevUrl && prevUrl.startsWith("blob:")) URL.revokeObjectURL(prevUrl);
+
+    if (!nextUrl) {
+      delete urlsRef.current[id];
+      setPhotoById((prev) => {
+        const n = { ...prev };
+        delete n[id];
+        return n;
+      });
+      return;
+    }
+
+    urlsRef.current[id] = nextUrl;
+    setPhotoById((prev) => ({ ...prev, [id]: nextUrl }));
+  };
+
+  // cleanup all blob urls on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(urlsRef.current).forEach((u) => {
+        if (u && u.startsWith("blob:")) URL.revokeObjectURL(u);
+      });
+      urlsRef.current = {};
+    };
+  }, []);
+
   useEffect(() => {
     setStatusById((prev) => {
       const next: Record<string, PaymentStatus> = { ...prev };
@@ -260,13 +302,11 @@ export default function AdminPaymentsPage() {
       .filter((r) => {
         const currentStatus = statusById[r.id] ?? r.status;
 
-        // ✅ filters
         if (statusFilter !== "All" && currentStatus !== statusFilter)
           return false;
         if (residencyFilter !== "All" && r.residencyType !== residencyFilter)
           return false;
 
-        // ✅ search
         if (!q) return true;
 
         const hay = [
@@ -376,7 +416,7 @@ export default function AdminPaymentsPage() {
         {/* Desktop table */}
         <div className="hidden md:block">
           <div className="overflow-x-auto">
-            <table className="min-w-[980px] w-full">
+            <table className="min-w-[1120px] w-full">
               <thead className="bg-zinc-50">
                 <tr className="text-left text-[11px] font-extrabold uppercase tracking-wider text-zinc-500">
                   <Th>Lot</Th>
@@ -386,6 +426,7 @@ export default function AdminPaymentsPage() {
                   <Th>Amount</Th>
                   <Th>Date</Th>
                   <Th>Status</Th>
+                  <Th>Photo</Th>
                 </tr>
               </thead>
 
@@ -394,7 +435,7 @@ export default function AdminPaymentsPage() {
                   <tr>
                     <td
                       className="px-4 py-10 text-center text-sm font-semibold text-zinc-500"
-                      colSpan={7}
+                      colSpan={8}
                     >
                       No records found.
                     </td>
@@ -402,6 +443,7 @@ export default function AdminPaymentsPage() {
                 ) : (
                   filtered.map((r) => {
                     const status = statusById[r.id] ?? r.status;
+                    const photoUrl = photoById[r.id];
 
                     return (
                       <tr key={r.id} className="hover:bg-zinc-50">
@@ -426,6 +468,21 @@ export default function AdminPaymentsPage() {
                             value={status}
                             onChange={(next) => updateStatus(r.id, next)}
                           />
+                        </Td>
+
+                        <Td>
+                          <div className="flex items-center gap-2">
+                            <AvatarThumb url={photoUrl} name={fullName(r)} />
+                            <PhotoButton
+                              id={r.id}
+                              hasPhoto={Boolean(photoUrl)}
+                              onPick={(file) => {
+                                const url = URL.createObjectURL(file);
+                                setPhoto(r.id, url);
+                              }}
+                              onRemove={() => setPhoto(r.id, null)}
+                            />
+                          </div>
                         </Td>
                       </tr>
                     );
@@ -454,6 +511,7 @@ export default function AdminPaymentsPage() {
               <div className="space-y-3">
                 {filtered.map((r) => {
                   const status = statusById[r.id] ?? r.status;
+                  const photoUrl = photoById[r.id];
 
                   return (
                     <div
@@ -470,7 +528,10 @@ export default function AdminPaymentsPage() {
                           </p>
                         </div>
 
-                        <StatusPillModern status={status} />
+                        <div className="flex items-center gap-2">
+                          <AvatarThumb url={photoUrl} name={fullName(r)} />
+                          <StatusPillModern status={status} />
+                        </div>
                       </div>
 
                       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -483,15 +544,36 @@ export default function AdminPaymentsPage() {
                         <MiniField label="Status" value={status} />
                       </div>
 
-                      <div className="mt-3">
-                        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-                          Update Status
-                        </p>
-                        <StatusSelectModern
-                          value={status}
-                          onChange={(next) => updateStatus(r.id, next)}
-                          fullWidth
-                        />
+                      <div className="mt-3 grid grid-cols-1 gap-2">
+                        <div>
+                          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                            Update Status
+                          </p>
+                          <StatusSelectModern
+                            value={status}
+                            onChange={(next) => updateStatus(r.id, next)}
+                            fullWidth
+                          />
+                        </div>
+
+                        <div>
+                          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                            Photo
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <AvatarThumb url={photoUrl} name={fullName(r)} />
+                            <PhotoButton
+                              id={r.id}
+                              hasPhoto={Boolean(photoUrl)}
+                              onPick={(file) => {
+                                const url = URL.createObjectURL(file);
+                                setPhoto(r.id, url);
+                              }}
+                              onRemove={() => setPhoto(r.id, null)}
+                              fullWidth
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
                   );
@@ -522,6 +604,80 @@ export default function AdminPaymentsPage() {
         activeCount={activeFiltersCount}
         onClear={clearFilters}
       />
+    </div>
+  );
+}
+
+/* ---------- Photo UI (TEMP state) ---------- */
+
+function AvatarThumb({ url, name }: { url?: string; name: string }) {
+  return (
+    <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-2xl bg-emerald-50 ring-1 ring-emerald-100">
+      {url ? (
+        <img src={url} alt={name} className="h-full w-full object-cover" />
+      ) : (
+        <ImagePlus size={18} className="text-emerald-700" />
+      )}
+    </div>
+  );
+}
+
+function PhotoButton({
+  id,
+  hasPhoto,
+  onPick,
+  onRemove,
+  fullWidth,
+}: {
+  id: string;
+  hasPhoto: boolean;
+  onPick: (file: File) => void;
+  onRemove: () => void;
+  fullWidth?: boolean;
+}) {
+  return (
+    <div className={cx("flex items-center gap-2", fullWidth && "w-full")}>
+      <label
+        className={cx(
+          "cursor-pointer inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-3",
+          "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800",
+          "ring-1 ring-emerald-700/20",
+          fullWidth ? "flex-1" : "",
+        )}
+      >
+        <ImagePlus size={16} />
+        <span className="text-xs font-extrabold">
+          {hasPhoto ? "Change Photo" : "Add Photo"}
+        </span>
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            onPick(f);
+            // allow picking the same file again
+            e.currentTarget.value = "";
+          }}
+        />
+      </label>
+
+      {hasPhoto ? (
+        <button
+          type="button"
+          onClick={onRemove}
+          className={cx(
+            "cursor-pointer grid size-10 place-items-center rounded-2xl",
+            "border border-emerald-200 bg-emerald-50 text-emerald-800",
+            "hover:bg-emerald-100 active:bg-emerald-200",
+          )}
+          aria-label="Remove photo"
+          title="Remove"
+        >
+          <Trash2 size={16} />
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -609,7 +765,7 @@ function TdStrong({ children }: { children: React.ReactNode }) {
   );
 }
 
-/* ---------- Phase/Block LISTBOX (replaces <select>) ---------- */
+/* ---------- Phase/Block LISTBOX ---------- */
 
 function SelectListbox({
   label,
@@ -671,9 +827,7 @@ function SelectListbox({
               >
                 {({ selected }) => (
                   <>
-                    {/* show full label (no forced truncation) */}
                     <span className="whitespace-normal leading-5">{opt}</span>
-
                     {selected ? (
                       <span className="grid size-7 place-items-center rounded-lg bg-emerald-600 text-white shadow-sm">
                         <Check size={16} />
@@ -852,7 +1006,7 @@ function FilterModal({
 
         <div className="fixed inset-0 overflow-y-auto">
           <div className="flex min-h-full items-end justify-center p-3 sm:items-center sm:p-6">
-            <Transition.Child
+            <TransitionChild
               as={Fragment}
               enter="ease-out duration-150"
               enterFrom="opacity-0 translate-y-2 sm:translate-y-0 sm:scale-[0.98]"
@@ -960,7 +1114,7 @@ function FilterModal({
                   </div>
                 </div>
               </Dialog.Panel>
-            </Transition.Child>
+            </TransitionChild>
           </div>
         </div>
       </Dialog>

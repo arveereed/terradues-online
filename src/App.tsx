@@ -32,9 +32,11 @@ function App() {
   const isAdmin =
     !!adminEmail && clerkUser?.emailAddresses[0].emailAddress === adminEmail;
 
+  // Roles
   const isGuest = !isSignedIn;
   const isUser = isSignedIn && !isAdmin;
   const isAdminUser = isSignedIn && isAdmin;
+  /* TODO: add Autdior role and Payment Receiver role */
 
   if (!isLoaded) return <AppLoader />;
 
