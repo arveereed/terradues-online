@@ -21,7 +21,7 @@ import UserLayout from "./pages/layouts/UserLayout";
 import AdminListOfResidentsPage from "./pages/admin/AdminListOfResidentsPage";
 import AdminPaymentStatusPage from "./pages/admin/AdminPaymentStatusPage";
 import AdminSettingsPage from "./pages/admin/AdminSettingsPage";
-import AdminPaymenHistoryPage from "./pages/admin/AdminPaymenHistoryPage";
+import AdminPaymentHistoryPage from "./pages/admin/AdminPaymentHistoryPage";
 import AdminPaymentSummaryPage from "./pages/admin/AdminPaymentSummaryPage";
 import AdminNotificationPage from "./pages/admin/AdminNotificationPage";
 
@@ -81,7 +81,7 @@ function App() {
           <Route index element={<AdminHomePage />} />
           <Route path="users" element={<AdminListOfResidentsPage />} />
           <Route path="payments" element={<AdminPaymentStatusPage />} />
-          <Route path="payment-history" element={<AdminPaymenHistoryPage />} />
+          <Route path="payment-history" element={<AdminPaymentHistoryPage />} />
           <Route path="payment-summary" element={<AdminPaymentSummaryPage />} />
           <Route path="notification" element={<AdminNotificationPage />} />
           <Route path="settings" element={<AdminSettingsPage />} />
