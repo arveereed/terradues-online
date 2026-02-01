@@ -623,7 +623,7 @@ function AvatarThumb({ url, name }: { url?: string; name: string }) {
 }
 
 function PhotoButton({
-  id,
+  /*  id, */
   hasPhoto,
   onPick,
   onRemove,
