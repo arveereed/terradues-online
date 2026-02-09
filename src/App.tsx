@@ -28,9 +28,11 @@ import AdminSettingsPage from "./pages/admin/AdminSettingsPage";
 import AdminPaymentHistoryPage from "./pages/admin/AdminPaymentHistoryPage";
 import AdminPaymentSummaryPage from "./pages/admin/AdminPaymentSummaryPage";
 import AdminNotificationPage from "./pages/admin/AdminNotificationPage";
+import { useFirestoreUser } from "./features/auth/hooks/useFirestoreUser";
 
 function App() {
   const { user: clerkUser, isLoaded, isSignedIn } = useUser();
+  const { isLoading } = useFirestoreUser(clerkUser?.id);
 
   const adminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
   const isAdmin =
@@ -42,7 +44,7 @@ function App() {
   const isAdminUser = isSignedIn && isAdmin;
   /* TODO: add Autdior role and Payment Receiver role */
 
-  if (!isLoaded) return <AppLoader />;
+  if (!isLoaded || isLoading) return <AppLoader />;
 
   return (
     <Routes>

@@ -1,9 +1,7 @@
 import { ShieldCheck, Trash2, Users, Lightbulb, Leaf } from "lucide-react";
 import bg from "../../assets/homebg.jpg";
-
-type Props = {
-  userName?: string; // optional if you want to pass name from Clerk
-};
+import { useFirestoreUser } from "../../features/auth/hooks/useFirestoreUser";
+import { useUser } from "@clerk/clerk-react";
 
 const duesBreakdown = [
   {
@@ -37,7 +35,11 @@ const duesBreakdown = [
   },
 ] as const;
 
-export default function Home({ userName = "Brylle" }: Props) {
+export default function Home() {
+  const { user: clerkUser } = useUser();
+  const { data } = useFirestoreUser(clerkUser?.id);
+  const userName = data?.firstName;
+
   return (
     <div>
       {/* Content grid */}

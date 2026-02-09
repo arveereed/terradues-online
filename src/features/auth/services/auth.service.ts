@@ -25,7 +25,7 @@ export const addUser = async (
   return docRef.id;
 };
 
-export const getUserById = async (userId: string) => {
+export const getUserById = async (userId: string | undefined) => {
   try {
     const usersCollection = collection(db, "users");
     const q = query(usersCollection, where("user_id", "==", userId));

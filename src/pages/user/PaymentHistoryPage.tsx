@@ -1,4 +1,6 @@
+import { useUser } from "@clerk/clerk-react";
 import { useMemo, useState } from "react";
+import { useFirestoreUser } from "../../features/auth/hooks/useFirestoreUser";
 
 type PaymentStatus = "Paid" | "Unpaid";
 
@@ -9,9 +11,6 @@ type PaymentItem = {
 };
 
 type Props = {
-  userName?: string;
-  blkLot?: string;
-
   totalMonthlyDuePaid?: number;
   unpaidBalance?: number;
 
@@ -24,6 +23,12 @@ type Props = {
   onLogout?: () => void;
 
   onOpenItem?: (item: PaymentItem) => void;
+};
+
+type PaginationProps = {
+  page: number;
+  totalPages: number;
+  onPageChange: (p: number) => void;
 };
 
 const peso = (n: number) =>
@@ -82,12 +87,6 @@ function getPaginationRange(opts: {
   );
   return [firstPageIndex, "...", ...middleRange, "...", lastPageIndex];
 }
-
-type PaginationProps = {
-  page: number;
-  totalPages: number;
-  onPageChange: (p: number) => void;
-};
 
 function Pagination({ page, totalPages, onPageChange }: PaginationProps) {
   const range = useMemo(
@@ -185,8 +184,6 @@ function Pagination({ page, totalPages, onPageChange }: PaginationProps) {
 }
 
 export default function PaymentHistory({
-  userName = "Brylle U. Milliomeda",
-  blkLot = "Blk 4 Lot 54 Phase 2",
   totalMonthlyDuePaid = 5356,
   unpaidBalance = 1257,
   upcomingPaymentDate = "April 20, 2025, Sun",
@@ -202,6 +199,9 @@ export default function PaymentHistory({
     { dateLabel: "Sep 20, 2024, Fri", status: "Unpaid", amount: 300 },
   ],
 }: Props) {
+  const { user: clerkUser } = useUser();
+  const { data: user } = useFirestoreUser(clerkUser?.id);
+
   // ✅ pagination state
   const [page, setPage] = useState(1);
   const pageSize = 6; // adjust
@@ -221,9 +221,9 @@ export default function PaymentHistory({
       <section className="rounded-3xl bg-emerald-700 p-5 text-white shadow-sm ring-1 ring-emerald-600/30 sm:p-7">
         <p className="text-xs text-emerald-50/90">Good Day!</p>
         <p className="mt-1 text-lg font-extrabold tracking-tight sm:text-xl">
-          {userName}
+          {user?.fullName}
         </p>
-        <p className="mt-1 text-xs text-emerald-50/80">{blkLot}</p>
+        <p className="mt-1 text-xs text-emerald-50/80">{user?.address}</p>
       </section>
 
       {/* Summary cards */}

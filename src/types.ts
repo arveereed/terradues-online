@@ -20,6 +20,7 @@ export type UserDataSignUpOwnerType = {
   document: string | null;
 
   fullName: string;
+  address: string;
 };
 
 export type UserDataSignUpRenterType = Omit<

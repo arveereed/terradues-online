@@ -9,7 +9,8 @@ import {
   Settings,
   LogOut,
 } from "lucide-react";
-import { useClerk } from "@clerk/clerk-react";
+import { useClerk, useUser } from "@clerk/clerk-react";
+import { useFirestoreUser } from "../../features/auth/hooks/useFirestoreUser";
 
 type NavItem = {
   label: string;
@@ -26,8 +27,11 @@ const navItems: NavItem[] = [
 ];
 
 export default function UserLayout() {
+  const { user: clerkUser } = useUser();
+  const { data } = useFirestoreUser(clerkUser?.id);
+
   const [open, setOpen] = useState(false);
-  const userName = "Bryle B. Milliomeda";
+  const userName = data?.fullName;
 
   // Lock body scroll when sidebar is open on mobile
   useEffect(() => {
