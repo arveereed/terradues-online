@@ -18,6 +18,8 @@ export type UserDataSignUpOwnerType = {
 
   picture: string | null;
   document: string | null;
+
+  fullName: string;
 };
 
 export type UserDataSignUpRenterType = Omit<

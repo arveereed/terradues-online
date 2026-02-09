@@ -11,7 +11,7 @@ import AppInput from "../../components/AppInput";
 
 type OwnerSignUpFormData = Omit<
   UserDataSignUpRenterType,
-  "userType" | "user_id" | "document" | "picture"
+  "userType" | "user_id" | "document" | "picture" | "fullName"
 > & {
   password: string;
   confirmPassword: string;
@@ -259,6 +259,8 @@ export default function SignUpOwner() {
           ownerContactNumber: form.ownerContactNumber,
           ownerName: form.ownerName,
           ownerNumberOccupants: form.ownerNumberOccupants,
+
+          fullName: `${form.firstName} ${form.middleName ? form.middleName[0] + "." : ""} ${form.lastName}`,
         };
         await addUser(userData);
 

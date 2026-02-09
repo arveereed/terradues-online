@@ -1,11 +1,5 @@
-import {
-  ShieldCheck,
-  Trash2,
-  Users,
-  Lightbulb,
-  Leaf,
-  ArrowRight,
-} from "lucide-react";
+import { ShieldCheck, Trash2, Users, Lightbulb, Leaf } from "lucide-react";
+import bg from "../../assets/homebg.jpg";
 
 type Props = {
   userName?: string; // optional if you want to pass name from Clerk
@@ -58,7 +52,7 @@ export default function Home({ userName = "Brylle" }: Props) {
                     - OR use /public and reference "/your-image.png"
                 */}
               <img
-                src="/house.jpg"
+                src={bg}
                 alt="Community house"
                 className="h-56 w-full object-cover sm:h-72"
               />
@@ -79,14 +73,14 @@ export default function Home({ userName = "Brylle" }: Props) {
                 updated on important community communications.
               </p>
 
-              <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+              {/* <div className="mt-5 flex flex-col gap-2 sm:flex-row">
                 <button className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-emerald-800 shadow-sm hover:bg-emerald-50">
                   Check My Balance <ArrowRight size={16} />
                 </button>
                 <button className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-200/30 bg-emerald-700/40 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700/55">
                   View Announcements <ArrowRight size={16} />
                 </button>
-              </div>
+              </div> */}
             </div>
           </div>
         </div>
