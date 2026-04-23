@@ -385,7 +385,7 @@ export default function SignUpOwner() {
         {/* Form */}
         <form
           onSubmit={onSignUpPress}
-          className="grid grid-cols-1 md:grid-cols-2 gap-4"
+          className="grid grid-cols-1 text-black md:grid-cols-2 gap-4"
         >
           {/* Personal Details */}
           <div className="md:col-span-2">
@@ -860,7 +860,7 @@ export default function SignUpOwner() {
           <div className="md:col-span-2 mt-4">
             <button
               disabled={notAgree || isLoading}
-              className={`btn w-full  disabled:bg-gray-4000 border-green-60 bg-green-700 hover:bg-green-800 text-white `}
+              className={`btn w-full  disabled:bg-gray-400 border-green-60 bg-green-700 hover:bg-green-800 text-white `}
             >
               {isLoading ? (
                 <span className="loading loading-bars loading-xs"></span>

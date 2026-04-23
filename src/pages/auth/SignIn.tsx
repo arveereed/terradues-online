@@ -76,7 +76,7 @@ export default function SignIn() {
         <div className="mt-8 slide-up w-full rounded-2xl bg-white sm:border sm:border-gray-100 sm:p-6 sm:shadow-sm">
           <h1 className="text-center text-xl font-bold text-gray-900">Login</h1>
 
-          <form onSubmit={onSignInPress} className="mt-6 space-y-4">
+          <form onSubmit={onSignInPress} className="mt-6 space-y-4 text-black">
             {/* Email */}
             <div>
               <label className="mb-2 block text-xs font-medium text-gray-600">
