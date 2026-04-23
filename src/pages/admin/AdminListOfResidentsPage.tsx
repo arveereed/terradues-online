@@ -427,13 +427,14 @@ export default function AdminListOfResidentsPage() {
       {/* Actions row */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[auto_auto_1fr_auto] lg:items-center">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <Link
-            to="/admin/users/new"
+          <button
+            type="button"
+            onClick={() => setManageOpen(true)}
             className="cursor-pointer inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-extrabold text-white shadow-sm hover:bg-emerald-700 active:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-200"
           >
             <Plus size={18} />
             Add New
-          </Link>
+          </button>
 
           <Link
             to={canEdit ? `/admin/users/${selectedResident!.id}/edit` : "#"}
@@ -465,16 +466,6 @@ export default function AdminListOfResidentsPage() {
             placeholder="Search name, email, lot..."
           />
         </div>
-
-        {/* Manage */}
-        <button
-          type="button"
-          onClick={() => setManageOpen(true)}
-          className="cursor-pointer inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-extrabold text-emerald-900 shadow-sm hover:bg-emerald-100 active:bg-emerald-200 focus:outline-none focus:ring-4 focus:ring-emerald-200"
-        >
-          <Settings2 size={18} />
-          Manage
-        </button>
       </div>
 
       {/* Phase + Block */}
