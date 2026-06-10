@@ -9,7 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { uploadToCloudinary } from "../../lib/cloudinary/cloudinary";
 import AppInput from "../../components/AppInput";
 
-type OwnerSignUpFormData = Omit<
+type RenterSignUpFormData = Omit<
   UserDataSignUpRenterType,
   "userType" | "user_id" | "document" | "picture" | "fullName" | "address"
 > & {
@@ -19,12 +19,28 @@ type OwnerSignUpFormData = Omit<
   document: File | null;
 };
 
-type FormErrors = Partial<Record<keyof OwnerSignUpFormData, string>>;
+type FormErrors = Partial<Record<keyof RenterSignUpFormData, string>>;
+
+const NUMBER_ONLY_FIELDS = [
+  "contactNumber",
+  "phase",
+  "block",
+  "lot",
+  "ownerContactNumber",
+  "ownerNumberOccupants",
+] as const;
+
+type NumberOnlyField = (typeof NUMBER_ONLY_FIELDS)[number];
+
+const isNumberOnlyField = (name: string): name is NumberOnlyField =>
+  NUMBER_ONLY_FIELDS.includes(name as NumberOnlyField);
+
+const numbersOnly = (value: string) => value.replace(/\D/g, "");
 
 export default function SignUpOwner() {
   const [errors, setErrors] = useState<FormErrors>({});
 
-  const [form, setForm] = useState<OwnerSignUpFormData>({
+  const [form, setForm] = useState<RenterSignUpFormData>({
     firstName: "",
     middleName: "",
     lastName: "",
@@ -70,8 +86,8 @@ export default function SignUpOwner() {
   const isAllowedDocument = (file: File) => {
     const allowedTypes = [
       "application/pdf",
-      "application/msword", // .doc
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ];
 
     const allowedExtensions = [".pdf", ".doc", ".docx"];
@@ -101,50 +117,76 @@ export default function SignUpOwner() {
     }
 
     if (!form.gender) errors.gender = "Gender is required";
-    if (!form.phase) errors.phase = "Phase is required";
-    if (!form.block) errors.block = "Block is required";
-    if (!form.lot) errors.lot = "Lot is required";
-    if (!form.ownerAddress) errors.ownerAddress = "Owner's address is required";
-    if (!form.ownerContactNumber)
-      errors.ownerContactNumber = "Owner's contact number is required";
-    if (!form.ownerName) errors.ownerName = "Owner's name is required";
 
-    if (!form.ownerNumberOccupants.trim()) {
-      errors.ownerNumberOccupants = "Number of Occupants is required";
+    if (!form.phase.trim()) {
+      errors.phase = "Phase is required";
+    } else if (!/^\d+$/.test(form.phase)) {
+      errors.phase = "Phase must contain numbers only";
     }
 
-    // Password
+    if (!form.block.trim()) {
+      errors.block = "Block is required";
+    } else if (!/^\d+$/.test(form.block)) {
+      errors.block = "Block must contain numbers only";
+    }
+
+    if (!form.lot.trim()) {
+      errors.lot = "Lot is required";
+    } else if (!/^\d+$/.test(form.lot)) {
+      errors.lot = "Lot must contain numbers only";
+    }
+
+    if (!form.ownerAddress.trim()) {
+      errors.ownerAddress = "Owner's address is required";
+    }
+
+    if (!form.ownerContactNumber.trim()) {
+      errors.ownerContactNumber = "Owner's contact number is required";
+    } else if (!/^\d{10,11}$/.test(form.ownerContactNumber)) {
+      errors.ownerContactNumber = "Owner's contact number must be 10–11 digits";
+    }
+
+    if (!form.ownerName.trim()) {
+      errors.ownerName = "Owner's name is required";
+    }
+
+    if (!form.ownerNumberOccupants.trim()) {
+      errors.ownerNumberOccupants = "Number of occupants is required";
+    } else if (!/^\d+$/.test(form.ownerNumberOccupants)) {
+      errors.ownerNumberOccupants =
+        "Number of occupants must contain numbers only";
+    }
+
     if (!form.password) {
       errors.password = "Password is required";
     } else {
       const pwd = form.password;
 
-      if (pwd.length < 8)
+      if (pwd.length < 8) {
         errors.password = "Password must be at least 8 characters";
-      else if (!/[A-Z]/.test(pwd))
+      } else if (!/[A-Z]/.test(pwd)) {
         errors.password = "Add at least 1 uppercase letter";
-      else if (!/[a-z]/.test(pwd))
+      } else if (!/[a-z]/.test(pwd)) {
         errors.password = "Add at least 1 lowercase letter";
-      else if (!/\d/.test(pwd)) errors.password = "Add at least 1 number";
-      else if (!/[^\w\s]/.test(pwd))
+      } else if (!/\d/.test(pwd)) {
+        errors.password = "Add at least 1 number";
+      } else if (!/[^\w\s]/.test(pwd)) {
         errors.password = "Add at least 1 special character";
+      }
     }
 
-    // Confirm Password
     if (!form.confirmPassword) {
       errors.confirmPassword = "Please confirm your password";
     } else if (form.confirmPassword !== form.password) {
       errors.confirmPassword = "Passwords do not match";
     }
 
-    // Picture validation
     if (!form.picture) {
       errors.picture = "Picture is required";
     } else if (!isImageFile(form.picture)) {
       errors.picture = "Please upload a valid image file";
     }
 
-    // Document validation
     if (!form.document) {
       errors.document = "Document is required";
     } else if (!isAllowedDocument(form.document)) {
@@ -154,12 +196,10 @@ export default function SignUpOwner() {
     const MAX_IMAGE_MB = 5;
     const MAX_DOC_MB = 10;
 
-    // Picture validation size
     if (form.picture && form.picture.size > MAX_IMAGE_MB * 1024 * 1024) {
       errors.picture = `Image must be less than ${MAX_IMAGE_MB}MB`;
     }
 
-    // Document validation size
     if (form.document && form.document.size > MAX_DOC_MB * 1024 * 1024) {
       errors.document = `Document must be less than ${MAX_DOC_MB}MB`;
     }
@@ -168,33 +208,26 @@ export default function SignUpOwner() {
     return Object.keys(errors).length === 0;
   };
 
-  // Handle submission of sign-up form
   const onSignUpPress = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!isLoaded) return;
-
     if (!validateForm()) return;
+
     setIsLoading(true);
 
-    // Start sign-up process using email and password provided
     try {
       await signUp.create({
         emailAddress: form.email,
         password: form.password,
       });
 
-      // Send user an email with verification code
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
 
-      // Set 'pendingVerification' to true to display second form
-      // and capture OTP code
       setIsLoading(false);
       setError("");
       setPendingVerification(true);
     } catch (err: any) {
-      // See https://clerk.com/docs/custom-flows/error-handling
-      // for more info on error handling
       if (err.errors?.[0]?.code === "form_identifier_exists") {
         setError("That email address is taken. Please try another.");
       } else if (err.errors?.[0]?.code === "form_param_format_invalid") {
@@ -208,24 +241,22 @@ export default function SignUpOwner() {
       } else if (err.errors?.[0]?.code === "too_many_requests") {
         setError(err.errors?.[0]?.message);
       }
+
       setIsLoading(false);
       console.log(JSON.stringify(err, null, 2));
     }
   };
 
-  // Handle submission of verification form
   const onVerifyPress = async () => {
     if (!isLoaded) return;
+
     setIsLoading(true);
 
     try {
-      // Use the code the user provided to attempt verification
       const signUpAttempt = await signUp.attemptEmailAddressVerification({
         code,
       });
 
-      // If verification was completed, set the session to active
-      // and redirect the user
       if (signUpAttempt.status === "complete") {
         await setActive({ session: signUpAttempt.createdSessionId });
 
@@ -234,6 +265,7 @@ export default function SignUpOwner() {
           "terradues/users/profile",
           "image",
         );
+
         const docUrl = await uploadToCloudinary(
           form.document as any,
           "terradues/users/document",
@@ -260,23 +292,21 @@ export default function SignUpOwner() {
           ownerName: form.ownerName,
           ownerNumberOccupants: form.ownerNumberOccupants,
 
-          fullName: `${form.firstName} ${form.middleName ? form.middleName[0] + "." : ""} ${form.lastName}`,
+          fullName: `${form.firstName} ${
+            form.middleName ? form.middleName[0] + "." : ""
+          } ${form.lastName}`,
           address: `Blk ${form.block} Lot ${form.lot} Phase ${form.phase}`,
         };
+
         await addUser(userData);
 
         navigate("/");
         setIsLoading(false);
       } else {
-        // If the status is not complete, check why. User may need to
-        // complete further steps.
         setIsLoading(false);
-
         console.error(JSON.stringify(signUpAttempt, null, 2));
       }
     } catch (err: any) {
-      // See https://clerk.com/docs/custom-flows/error-handling
-      // for more info on error handling
       if (err.errors?.[0]?.code === "too_many_requests") {
         setError("Too many requests. Please try again in a bit.");
       } else if (err.errors?.[0]?.code === "form_param_nil") {
@@ -284,9 +314,8 @@ export default function SignUpOwner() {
       } else if (err.errors?.[0]?.code === "form_code_incorrect") {
         setError("The code is incorrect");
       }
-      setIsLoading(false);
 
-      // console.error(JSON.stringify(err, null, 2));
+      setIsLoading(false);
     }
   };
 
@@ -309,13 +338,16 @@ export default function SignUpOwner() {
 
     setForm((prev) => ({
       ...prev,
-      [name]: type === "checkbox" ? checked : value,
+      [name]: isNumberOnlyField(name)
+        ? numbersOnly(value)
+        : type === "checkbox"
+          ? checked
+          : value,
     }));
   };
 
-  /* for UPLOAD PHOTO */
-  const handleImageChange = async (e: any) => {
-    const photo = e.target.files[0];
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const photo = e.target.files?.[0] ?? null;
 
     setForm((prev) => ({
       ...prev,
@@ -329,7 +361,6 @@ export default function SignUpOwner() {
     }
   };
 
-  /* for UPLOAD DOCUMENT */
   const handleDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const doc = e.target.files?.[0] ?? null;
 
@@ -338,7 +369,6 @@ export default function SignUpOwner() {
       document: doc,
     }));
 
-    // cleanup previous preview URL
     if (documentPreview) URL.revokeObjectURL(documentPreview);
 
     if (!doc) {
@@ -346,15 +376,12 @@ export default function SignUpOwner() {
       return;
     }
 
-    // ✅ Preview logic:
-    // - PDF: preview using blob URL in an iframe
-    // - Others: we still keep a blob URL (optional), but we’ll mostly show filename
     const url = URL.createObjectURL(doc);
     setDocumentPreview(url);
   };
 
   const readFileAsDataURL = (
-    file: any,
+    file: File,
   ): Promise<string | ArrayBuffer | null> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -369,7 +396,6 @@ export default function SignUpOwner() {
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-lg p-6 md:p-10">
-        {/* Header */}
         <div className="flex flex-col items-center px-4">
           <img
             src={Icon}
@@ -378,24 +404,21 @@ export default function SignUpOwner() {
           />
 
           <div className="flex gap-1 text-xl">
-            <span className=" font-bold text-green-700">TERRA</span>
-            <span className=" font-bold text-black">DUES</span>
+            <span className="font-bold text-green-700">TERRA</span>
+            <span className="font-bold text-black">DUES</span>
           </div>
         </div>
 
-        {/* Form */}
         <form
           onSubmit={onSignUpPress}
           className="grid grid-cols-1 md:grid-cols-2 gap-4"
         >
-          {/* Personal Details */}
           <div className="md:col-span-2">
             <h2 className="text-sm font-semibold text-gray-600 mb-2">
               Personal Detail
             </h2>
           </div>
 
-          {/* First Name */}
           <div>
             <AppInput
               name="firstName"
@@ -413,7 +436,6 @@ export default function SignUpOwner() {
             )}
           </div>
 
-          {/* Middle Name */}
           <div>
             <AppInput
               name="middleName"
@@ -424,7 +446,6 @@ export default function SignUpOwner() {
             />
           </div>
 
-          {/* Last Name */}
           <div className="md:col-span-2">
             <AppInput
               name="lastName"
@@ -440,9 +461,11 @@ export default function SignUpOwner() {
             {errors.lastName && <p className={errorClass}>{errors.lastName}</p>}
           </div>
 
-          {/* Contact Number */}
           <div>
             <AppInput
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               name="contactNumber"
               value={form.contactNumber}
               onChange={handleChange}
@@ -458,7 +481,6 @@ export default function SignUpOwner() {
             )}
           </div>
 
-          {/* Email */}
           <div>
             <AppInput
               name="email"
@@ -474,7 +496,6 @@ export default function SignUpOwner() {
             {errors.email && <p className={errorClass}>{errors.email}</p>}
           </div>
 
-          {/* Gender */}
           <div className="md:col-span-2 flex flex-wrap gap-4 text-sm text-gray-700">
             <span className="font-medium">Gender:</span>
             {["Male", "Female", "Prefer not to say"].map((g) => (
@@ -490,22 +511,24 @@ export default function SignUpOwner() {
               </label>
             ))}
           </div>
+
           {errors.gender && (
             <p className="md:col-span-2 text-xs text-red-500">
               {errors.gender}
             </p>
           )}
 
-          {/* Address */}
           <div className="md:col-span-2">
             <h2 className="text-sm font-semibold text-gray-600 mt-4 mb-2">
               Address
             </h2>
           </div>
 
-          {/* Phase */}
           <div>
             <AppInput
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               name="phase"
               value={form.phase}
               onChange={handleChange}
@@ -514,14 +537,16 @@ export default function SignUpOwner() {
                   ? "border-red-400 focus:ring-red-500"
                   : "border-gray-300 focus:ring-green-500"
               }`}
-              placeholder="Phase"
+              placeholder="Phase Number"
             />
             {errors.phase && <p className={errorClass}>{errors.phase}</p>}
           </div>
 
-          {/* Block */}
           <div>
             <AppInput
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               name="block"
               value={form.block}
               onChange={handleChange}
@@ -530,14 +555,16 @@ export default function SignUpOwner() {
                   ? "border-red-400 focus:ring-red-500"
                   : "border-gray-300 focus:ring-green-500"
               }`}
-              placeholder="Block"
+              placeholder="Block Number"
             />
             {errors.block && <p className={errorClass}>{errors.block}</p>}
           </div>
 
-          {/* Lot */}
           <div>
             <AppInput
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               name="lot"
               value={form.lot}
               onChange={handleChange}
@@ -546,12 +573,11 @@ export default function SignUpOwner() {
                   ? "border-red-400 focus:ring-red-500"
                   : "border-gray-300 focus:ring-green-500"
               }`}
-              placeholder="Lot"
+              placeholder="Lot Number"
             />
             {errors.lot && <p className={errorClass}>{errors.lot}</p>}
           </div>
 
-          {/* Password */}
           <div className="relative">
             <AppInput
               type={showPassword ? "text" : "password"}
@@ -569,7 +595,9 @@ export default function SignUpOwner() {
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
-              className={`absolute right-3 ${errors.password ? "top-1/3" : "top-1/2"} -translate-y-1/2 text-gray-500 hover:text-gray-700`}
+              className={`absolute right-3 ${
+                errors.password ? "top-1/3" : "top-1/2"
+              } -translate-y-1/2 text-gray-500 hover:text-gray-700`}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -577,7 +605,6 @@ export default function SignUpOwner() {
             {errors.password && <p className={errorClass}>{errors.password}</p>}
           </div>
 
-          {/* Confirm Password */}
           <div className="relative">
             <AppInput
               type={showConfirmPassword ? "text" : "password"}
@@ -595,7 +622,9 @@ export default function SignUpOwner() {
             <button
               type="button"
               onClick={() => setShowConfirmPassword((prev) => !prev)}
-              className={`absolute right-3 ${errors.password ? "top-1/3" : "top-1/2"} -translate-y-1/2 text-gray-500 hover:text-gray-700`}
+              className={`absolute right-3 ${
+                errors.confirmPassword ? "top-1/3" : "top-1/2"
+              } -translate-y-1/2 text-gray-500 hover:text-gray-700`}
             >
               {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -605,14 +634,12 @@ export default function SignUpOwner() {
             )}
           </div>
 
-          {/* Homeowner Details */}
           <div className="md:col-span-2">
             <h2 className="text-sm font-semibold text-gray-600 mt-4 mb-2">
               Homeowner Details
             </h2>
           </div>
 
-          {/* Owner Name */}
           <div>
             <AppInput
               name="ownerName"
@@ -630,9 +657,11 @@ export default function SignUpOwner() {
             )}
           </div>
 
-          {/* Owner Contact Number */}
           <div>
             <AppInput
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               name="ownerContactNumber"
               value={form.ownerContactNumber}
               onChange={handleChange}
@@ -648,7 +677,6 @@ export default function SignUpOwner() {
             )}
           </div>
 
-          {/* Owner Address */}
           <div>
             <AppInput
               name="ownerAddress"
@@ -666,9 +694,11 @@ export default function SignUpOwner() {
             )}
           </div>
 
-          {/* Number of Occupants */}
           <div>
             <AppInput
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               name="ownerNumberOccupants"
               value={form.ownerNumberOccupants}
               onChange={handleChange}
@@ -684,16 +714,14 @@ export default function SignUpOwner() {
             )}
           </div>
 
-          {/* Uploads */}
           <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* PHOTO UPLOAD */}
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                Photo
+                Valid Government ID
               </label>
 
               <p className="min-h-8 text-xs text-gray-500">
-                This must be a clear photo of you (not someone else).
+                This must be a clear photo of you, not someone else.
               </p>
 
               <label
@@ -717,6 +745,7 @@ export default function SignUpOwner() {
               </label>
 
               {errors.picture && <p className={errorClass}>{errors.picture}</p>}
+
               {imagePreview && (
                 <div className="relative inline-block mt-2">
                   {typeof imagePreview === "string" && (
@@ -733,7 +762,6 @@ export default function SignUpOwner() {
                           setImagePreview(null);
                           setForm((prev) => ({ ...prev, picture: null }));
 
-                          // ✅ IMPORTANT: reset file AppInput so selecting the same file triggers onChange
                           if (pictureInputRef.current) {
                             pictureInputRef.current.value = "";
                           }
@@ -750,7 +778,6 @@ export default function SignUpOwner() {
               )}
             </div>
 
-            {/* DOCUMENT UPLOAD */}
             <div>
               <label className="block text-sm font-medium text-gray-700">
                 House Lease Agreement Document
@@ -788,10 +815,8 @@ export default function SignUpOwner() {
                 <p className={errorClass}>{errors.document}</p>
               )}
 
-              {/*Document Preview + remove */}
               {form.document && (
                 <div className="relative mt-2 rounded-lg border border-gray-200 p-2">
-                  {/* If PDF, show iframe preview */}
                   {form.document.type === "application/pdf" &&
                   documentPreview ? (
                     <iframe
@@ -804,6 +829,7 @@ export default function SignUpOwner() {
                       <p className="font-medium truncate">
                         {form.document.name}
                       </p>
+
                       <p className="text-xs text-gray-500">
                         Word document • {Math.round(form.document.size / 1024)}{" "}
                         KB
@@ -822,7 +848,6 @@ export default function SignUpOwner() {
                     </div>
                   )}
 
-                  {/* ❌ Remove button */}
                   <button
                     type="button"
                     onClick={() => {
@@ -830,8 +855,9 @@ export default function SignUpOwner() {
                       setDocumentPreview(null);
                       setForm((prev) => ({ ...prev, document: null }));
 
-                      // ✅ reset AppInput so user can re-select same file
-                      if (documentRef.current) documentRef.current.value = "";
+                      if (documentRef.current) {
+                        documentRef.current.value = "";
+                      }
                     }}
                     className="absolute cursor-pointer -top-2 -right-2 grid size-5 place-items-center rounded-full bg-black/70 text-white hover:bg-black focus:outline-none focus:ring-2 focus:ring-green-500"
                     aria-label="Remove document"
@@ -844,7 +870,6 @@ export default function SignUpOwner() {
             </div>
           </div>
 
-          {/* Terms */}
           <div className="md:col-span-2 flex items-start gap-2 text-xs text-gray-600 mt-2">
             <input
               className="cursor-pointer"
@@ -852,6 +877,7 @@ export default function SignUpOwner() {
               checked={!notAgree}
               onChange={() => setNotAgree((prev) => !prev)}
             />
+
             <p>
               By registering, you agree to our{" "}
               <span className="text-green-600">Terms & Conditions</span> and{" "}
@@ -860,22 +886,27 @@ export default function SignUpOwner() {
           </div>
 
           {error && (
-            <div className="flex items-center justify-between  bg-red-500 text-white p-3 rounded-lg my-4">
+            <div className="md:col-span-2 flex items-center justify-between bg-red-500 text-white p-3 rounded-lg my-4">
               <div className="flex items-center gap-2">
                 <AlertCircle size={20} />
                 <p>{error}</p>
               </div>
-              <button className="cursor-pointer" onClick={() => setError("")}>
+
+              <button
+                type="button"
+                className="cursor-pointer"
+                onClick={() => setError("")}
+              >
                 <XCircle size={20} />
               </button>
             </div>
           )}
 
-          {/* Submit */}
           <div className="md:col-span-2 mt-4">
             <button
+              type="submit"
               disabled={notAgree || isLoading}
-              className={`btn w-full  disabled:bg-gray-400 border-green-600 bg-green-700 hover:bg-green-800 text-white `}
+              className="btn w-full disabled:bg-gray-400 border-green-600 bg-green-700 hover:bg-green-800 text-white"
             >
               {isLoading ? (
                 <span className="loading loading-bars loading-xs"></span>

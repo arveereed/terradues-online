@@ -44,3 +44,13 @@ export const getUserById = async (userId: string | undefined) => {
     return null;
   }
 };
+
+export const getAllUsers = async () => {
+  const usersCollection = collection(db, "users");
+  const querySnapshot = await getDocs(usersCollection);
+
+  return querySnapshot.docs.map((docSnap) => ({
+    ...(docSnap.data() as User),
+    id: docSnap.id,
+  }));
+};
