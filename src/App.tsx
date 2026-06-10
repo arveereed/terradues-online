@@ -26,7 +26,6 @@ import AdminListOfResidentsPage from "./pages/admin/AdminListOfResidentsPage";
 import AdminPaymentStatusPage from "./pages/admin/AdminPaymentStatusPage";
 import AdminSettingsPage from "./pages/admin/AdminSettingsPage";
 import AdminPaymentHistoryPage from "./pages/admin/AdminPaymentHistoryPage";
-import AdminPaymentSummaryPage from "./pages/admin/AdminPaymentSummaryPage";
 import AdminNotificationPage from "./pages/admin/AdminNotificationPage";
 import { useFirestoreUser } from "./features/auth/hooks/useFirestoreUser";
 
@@ -88,7 +87,6 @@ function App() {
           <Route path="users" element={<AdminListOfResidentsPage />} />
           <Route path="payments" element={<AdminPaymentStatusPage />} />
           <Route path="payment-history" element={<AdminPaymentHistoryPage />} />
-          <Route path="payment-summary" element={<AdminPaymentSummaryPage />} />
           <Route path="notification" element={<AdminNotificationPage />} />
           <Route path="settings" element={<AdminSettingsPage />} />
         </Route>

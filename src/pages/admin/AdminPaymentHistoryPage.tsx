@@ -1,1176 +1,1118 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Dialog,
-  Listbox,
-  ListboxButton,
-  ListboxOption,
-  ListboxOptions,
-  Transition,
-} from "@headlessui/react";
-import {
-  Search,
-  ChevronDown,
-  Check,
-  SlidersHorizontal,
-  X,
-  Maximize2,
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  Eye,
+  RefreshCw,
+  Search,
+  SlidersHorizontal,
+  UserRound,
 } from "lucide-react";
 import AppInput from "../../components/AppInput";
+import { getAllUsers } from "../../features/auth/services/auth.service";
+import type { User } from "../../types";
 
 type PaymentStatus = "Paid" | "Not Paid";
 type StatusFilter = "All" | PaymentStatus;
 type ResidencyFilter = "All" | "Owner" | "Renter";
 
-type PaymentRow = {
+type ResidentUser = User & {
+  userType: "Owner" | "Renter";
+};
+
+type PaymentHistoryRow = {
   id: string;
-  lotNo: number;
+  monthLabel: string;
+  beginningBalance: number;
+  currentCharges: number;
+  collection: number;
+};
+
+type ResidentPaymentRow = {
+  id: string;
   firstName: string;
   middleName?: string;
   lastName: string;
   contactNumber?: string;
-  residencyType?: "Owner" | "Renter";
-  amount: number;
-  date: string; // "10-09-25" (MM-DD-YY)
-  status: PaymentStatus;
+  picture?: string | null;
+  residencyType: "Owner" | "Renter";
   phase: string;
   block: string;
-  photoUrl?: string | null;
+  lot: string;
+  lotNo: number;
+  address?: string;
+  amount: number;
+  date: string;
+  status: PaymentStatus;
+  history: PaymentHistoryRow[];
 };
+
+const ROWS_PER_PAGE = 5;
+const ALL_FILTER = "All";
+
+const PAYMENT_AMOUNT = 300;
+const DEFAULT_PAYMENT_STATUS: PaymentStatus = "Not Paid";
+
+const STATUS_FILTER_OPTIONS: StatusFilter[] = ["All", "Paid", "Not Paid"];
+const RESIDENCY_FILTER_OPTIONS: ResidencyFilter[] = ["All", "Owner", "Renter"];
 
 const cx = (...classes: Array<string | false | undefined | null>) =>
   classes.filter(Boolean).join(" ");
 
-const peso = (n: number) =>
+const peso = (amount: number) =>
   new Intl.NumberFormat("en-PH", {
     style: "currency",
     currency: "PHP",
     maximumFractionDigits: 0,
-  }).format(n);
+  }).format(amount);
 
-/** session keys */
-const KEY_PHASE = "td:adminPaymentHistory:phase";
-const KEY_BLOCK = "td:adminPaymentHistory:block";
+const clean = (value: unknown) =>
+  typeof value === "string" ? value.trim() : "";
 
-function readString(key: string, fallback: string) {
-  try {
-    return sessionStorage.getItem(key) ?? fallback;
-  } catch {
-    return fallback;
-  }
-}
+const toNumber = (value: unknown, fallback = 0) => {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : fallback;
+};
 
-function writeString(key: string, value: string) {
-  try {
-    sessionStorage.setItem(key, value);
-  } catch {
-    // ignore
-  }
-}
+const compareNatural = (a: string, b: string) =>
+  a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+
+const formatLocationPart = (
+  value: unknown,
+  label: "Phase" | "Block" | "Lot",
+) => {
+  const trimmed = clean(value);
+
+  if (!trimmed) return "";
+  if (trimmed.toLowerCase().startsWith(label.toLowerCase())) return trimmed;
+
+  return `${label} ${trimmed}`;
+};
+
+const toLotNumber = (value: unknown) => {
+  const numeric = Number(clean(value).replace(/\D/g, ""));
+  return Number.isFinite(numeric) ? numeric : 0;
+};
+
+const getTodayShortDate = () => {
+  const now = new Date();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const yy = String(now.getFullYear()).slice(-2);
+
+  return `${mm}-${dd}-${yy}`;
+};
 
 function formatShortDate(input: string) {
-  const [mm, dd, yy] = input.split("-").map((x) => Number(x));
+  const [mm, dd, yy] = input.split("-").map((value) => Number(value));
+
   if (!mm || !dd || Number.isNaN(yy)) return input;
 
   const fullYear = yy < 70 ? 2000 + yy : 1900 + yy;
-  const d = new Date(fullYear, mm - 1, dd);
-  if (Number.isNaN(d.getTime())) return input;
+  const date = new Date(fullYear, mm - 1, dd);
+
+  if (Number.isNaN(date.getTime())) return input;
 
   return new Intl.DateTimeFormat("en-PH", {
     month: "short",
     day: "2-digit",
     year: "numeric",
-  }).format(d);
+  }).format(date);
 }
 
-function fullName(r: PaymentRow) {
-  return [r.firstName, r.middleName, r.lastName].filter(Boolean).join(" ");
+const getMonthLabel = (offset: number) => {
+  const now = new Date();
+  const date = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+
+  return new Intl.DateTimeFormat("en-PH", {
+    month: "long",
+    year: "numeric",
+  }).format(date);
+};
+
+function fullName(
+  row: Pick<ResidentPaymentRow, "firstName" | "middleName" | "lastName">,
+) {
+  return [row.firstName, row.middleName, row.lastName]
+    .filter(Boolean)
+    .join(" ");
 }
+
+function getResidentAddress(row: ResidentPaymentRow) {
+  return (
+    row.address ||
+    [row.phase, row.block, row.lot].filter(Boolean).join(" / ") ||
+    "-"
+  );
+}
+
+const getPageNumbers = (currentPage: number, totalPages: number) => {
+  const maxVisiblePages = 5;
+
+  if (totalPages <= maxVisiblePages) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  let start = Math.max(1, currentPage - 2);
+  let end = start + maxVisiblePages - 1;
+
+  if (end > totalPages) {
+    end = totalPages;
+    start = end - maxVisiblePages + 1;
+  }
+
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+};
+
+const isResidentUser = (user: User): user is ResidentUser =>
+  user.userType === "Owner" || user.userType === "Renter";
+
+const getStoredPaymentStatus = (user: User): PaymentStatus => {
+  const paymentStatus = (user as { paymentStatus?: unknown }).paymentStatus;
+
+  return paymentStatus === "Paid" || paymentStatus === "Not Paid"
+    ? paymentStatus
+    : DEFAULT_PAYMENT_STATUS;
+};
+
+const getPaymentAmount = (user: User) => {
+  const rawAmount =
+    (user as { paymentAmount?: unknown }).paymentAmount ??
+    (user as { amount?: unknown }).amount;
+
+  const amount = Number(rawAmount);
+
+  return Number.isFinite(amount) && amount > 0 ? amount : PAYMENT_AMOUNT;
+};
+
+const getPaymentDate = (user: User) => {
+  const paymentDate = (user as { paymentDate?: unknown }).paymentDate;
+
+  return typeof paymentDate === "string" && paymentDate.trim()
+    ? paymentDate.trim()
+    : getTodayShortDate();
+};
+
+const buildDefaultHistory = (
+  amount: number,
+  status: PaymentStatus,
+): PaymentHistoryRow[] =>
+  Array.from({ length: 9 }).map((_, index) => {
+    const isCurrentMonth = index === 0;
+    const collection =
+      status === "Paid" && isCurrentMonth ? amount : index > 0 ? amount : 0;
+
+    return {
+      id: `default-history-${index}`,
+      monthLabel: getMonthLabel(index),
+      beginningBalance: 0,
+      currentCharges: amount,
+      collection,
+    };
+  });
+
+const getResidentHistory = (
+  user: ResidentUser,
+  amount: number,
+  status: PaymentStatus,
+): PaymentHistoryRow[] => {
+  const rawHistory =
+    (user as { paymentHistory?: unknown }).paymentHistory ??
+    (user as { payments?: unknown }).payments;
+
+  if (!Array.isArray(rawHistory) || rawHistory.length === 0) {
+    return buildDefaultHistory(amount, status);
+  }
+
+  return rawHistory.map((item, index) => {
+    const row = item as Record<string, unknown>;
+
+    return {
+      id: clean(row.id) || `${user.id}-history-${index}`,
+      monthLabel:
+        clean(row.monthLabel) ||
+        clean(row.month) ||
+        clean(row.billingMonth) ||
+        getMonthLabel(index),
+      beginningBalance: toNumber(
+        row.beginningBalance ?? row.balance ?? row.previousBalance,
+        0,
+      ),
+      currentCharges: toNumber(
+        row.currentCharges ?? row.charges ?? row.amount,
+        amount,
+      ),
+      collection: toNumber(row.collection ?? row.paid ?? row.payment, 0),
+    };
+  });
+};
+
+const toResidentPaymentRow = (user: ResidentUser): ResidentPaymentRow => {
+  const amount = getPaymentAmount(user);
+  const status = getStoredPaymentStatus(user);
+
+  return {
+    id: user.id,
+    firstName: clean(user.firstName),
+    middleName: clean(user.middleName),
+    lastName: clean(user.lastName),
+    contactNumber: clean(user.contactNumber),
+    picture: user.picture,
+    residencyType: user.userType,
+    phase: formatLocationPart(user.phase, "Phase"),
+    block: formatLocationPart(user.block, "Block"),
+    lot: formatLocationPart(user.lot, "Lot"),
+    lotNo: toLotNumber(user.lot),
+    address: clean(user.address),
+    amount,
+    date: getPaymentDate(user),
+    status,
+    history: getResidentHistory(user, amount, status),
+  };
+};
 
 export default function AdminPaymentHistoryPage() {
-  // ✅ demo data (replace with your query)
-  const rows = useMemo<PaymentRow[]>(
-    () => [
-      {
-        id: "p1",
-        lotNo: 1,
-        firstName: "Brylle",
-        middleName: "Undag",
-        lastName: "Milliomeda",
-        contactNumber: "09xxxxxx",
-        residencyType: "Owner",
-        amount: 300,
-        date: "10-09-25",
-        status: "Not Paid",
-        phase: "Phase 1",
-        block: "Block 1",
-        photoUrl:
-          "https://res.cloudinary.com/dhl0zf4ho/image/upload/v1769708059/terradues/users/profile/mlunqjdgqewimvdty6ua.jpg",
-      },
-      {
-        id: "p2",
-        lotNo: 2,
-        firstName: "John",
-        middleName: "Mark",
-        lastName: "Saldivar",
-        contactNumber: "09xxxxxx",
-        residencyType: "Renter",
-        amount: 300,
-        date: "10-09-25",
-        status: "Paid",
-        phase: "Phase 1",
-        block: "Block 1",
-        photoUrl:
-          "https://res.cloudinary.com/dhl0zf4ho/image/upload/v1769708059/terradues/users/profile/mlunqjdgqewimvdty6ua.jpg",
-      },
-      {
-        id: "p3",
-        lotNo: 3,
-        firstName: "Richard",
-        lastName: "Calibuso",
-        contactNumber: "09xxxxxx",
-        residencyType: "Owner",
-        amount: 300,
-        date: "10-09-25",
-        status: "Paid",
-        phase: "Phase 1",
-        block: "Block 1",
-        photoUrl:
-          "https://res.cloudinary.com/dhl0zf4ho/image/upload/v1769708059/terradues/users/profile/mlunqjdgqewimvdty6ua.jpg",
-      },
-      {
-        id: "p4",
-        lotNo: 4,
-        firstName: "Arvee",
-        lastName: "Durante",
-        contactNumber: "09xxxxxx",
-        residencyType: "Owner",
-        amount: 300,
-        date: "10-09-25",
-        status: "Paid",
-        phase: "Phase 1",
-        block: "Block 1",
-      },
-      {
-        id: "p5",
-        lotNo: 5,
-        firstName: "Michael",
-        lastName: "Jordan",
-        contactNumber: "09xxxxxx",
-        residencyType: "Owner",
-        amount: 300,
-        date: "10-09-25",
-        status: "Not Paid",
-        phase: "Phase 1",
-        block: "Block 1",
-      },
-      {
-        id: "p6",
-        lotNo: 1,
-        firstName: "Anne",
-        lastName: "Reyes",
-        contactNumber: "09xxxxxx",
-        residencyType: "Owner",
-        amount: 300,
-        date: "10-09-25",
-        status: "Paid",
-        phase: "Phase 1",
-        block: "Block 2",
-      },
-      {
-        id: "p7",
-        lotNo: 1,
-        firstName: "Jessa",
-        lastName: "Santos",
-        contactNumber: "09xxxxxx",
-        residencyType: "Renter",
-        amount: 300,
-        date: "10-09-25",
-        status: "Not Paid",
-        phase: "Phase 2",
-        block: "Block 1",
-      },
-    ],
-    [],
-  );
+  const [rows, setRows] = useState<ResidentPaymentRow[]>([]);
+  const [selectedResident, setSelectedResident] =
+    useState<ResidentPaymentRow | null>(null);
 
-  // ✅ remembered phase/block
-  const [phase, setPhase] = useState<string>(() =>
-    readString(KEY_PHASE, "Phase 1"),
-  );
-  const [block, setBlock] = useState<string>(() =>
-    readString(KEY_BLOCK, "Block 1"),
-  );
+  const [loading, setLoading] = useState(true);
+  const [dbError, setDbError] = useState<string | null>(null);
+
   const [query, setQuery] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedStatus, setSelectedStatus] =
+    useState<StatusFilter>(ALL_FILTER);
+  const [selectedResidency, setSelectedResidency] =
+    useState<ResidencyFilter>(ALL_FILTER);
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // ✅ Filter modal state
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
-  const [residencyFilter, setResidencyFilter] =
-    useState<ResidencyFilter>("All");
+  const loadResidents = async () => {
+    setLoading(true);
+    setDbError(null);
 
-  const activeFiltersCount =
-    (statusFilter !== "All" ? 1 : 0) + (residencyFilter !== "All" ? 1 : 0);
+    try {
+      const users = await getAllUsers();
 
-  const clearFilters = () => {
-    setStatusFilter("All");
-    setResidencyFilter("All");
+      const residentRows = users
+        .filter(isResidentUser)
+        .map(toResidentPaymentRow)
+        .sort((a, b) => {
+          const phaseCompare = compareNatural(a.phase, b.phase);
+          if (phaseCompare !== 0) return phaseCompare;
+
+          const blockCompare = compareNatural(a.block, b.block);
+          if (blockCompare !== 0) return blockCompare;
+
+          return a.lotNo - b.lotNo;
+        });
+
+      setRows(residentRows);
+    } catch (error) {
+      console.error("getAllUsers failed:", error);
+      setRows([]);
+      setDbError(
+        error instanceof Error ? error.message : "Failed to load residents.",
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const phases = useMemo(() => {
-    const unique = Array.from(new Set(rows.map((r) => r.phase))).sort();
-    return unique.length ? unique : ["Phase 1"];
-  }, [rows]);
-
-  const blocks = useMemo(() => {
-    const filteredByPhase = rows.filter((r) => r.phase === phase);
-    const unique = Array.from(
-      new Set(filteredByPhase.map((r) => r.block)),
-    ).sort();
-    return unique.length ? unique : ["Block 1"];
-  }, [rows, phase]);
-
-  // keep phase/block valid if data changes
   useEffect(() => {
-    if (!phases.includes(phase)) {
-      const nextPhase = phases[0] ?? "Phase 1";
-      setPhase(nextPhase);
-      writeString(KEY_PHASE, nextPhase);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phases]);
+    void loadResidents();
+  }, []);
 
   useEffect(() => {
-    if (!blocks.includes(block)) {
-      const nextBlock = blocks[0] ?? "Block 1";
-      setBlock(nextBlock);
-      writeString(KEY_BLOCK, nextBlock);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blocks]);
+    setCurrentPage(1);
+  }, [query, selectedStatus, selectedResidency]);
 
-  useEffect(() => writeString(KEY_PHASE, phase), [phase]);
-  useEffect(() => writeString(KEY_BLOCK, block), [block]);
+  const filteredRows = useMemo(() => {
+    const search = query.trim().toLowerCase();
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    return rows.filter((row) => {
+      const name = fullName(row).toLowerCase();
+      const address = getResidentAddress(row).toLowerCase();
 
-    return rows
-      .filter((r) => r.phase === phase && r.block === block)
-      .filter((r) => {
-        // ✅ filters (READ ONLY)
-        if (statusFilter !== "All" && r.status !== statusFilter) return false;
-        if (residencyFilter !== "All" && r.residencyType !== residencyFilter)
-          return false;
+      const matchesSearch =
+        !search ||
+        name.includes(search) ||
+        address.includes(search) ||
+        clean(row.contactNumber).toLowerCase().includes(search) ||
+        row.residencyType.toLowerCase().includes(search) ||
+        String(row.lotNo).includes(search) ||
+        peso(row.amount).toLowerCase().includes(search) ||
+        formatShortDate(row.date).toLowerCase().includes(search) ||
+        row.date.toLowerCase().includes(search) ||
+        row.status.toLowerCase().includes(search);
 
-        // ✅ search
-        if (!q) return true;
+      const matchesStatus =
+        selectedStatus === ALL_FILTER || row.status === selectedStatus;
 
-        const hay = [
-          r.lotNo,
-          fullName(r),
-          r.contactNumber ?? "",
-          r.residencyType ?? "",
-          formatShortDate(r.date),
-          r.date,
-          r.amount,
-          r.status,
-        ]
-          .join(" ")
-          .toLowerCase();
+      const matchesResidency =
+        selectedResidency === ALL_FILTER ||
+        row.residencyType === selectedResidency;
 
-        return hay.includes(q);
-      })
-      .sort((a, b) => a.lotNo - b.lotNo);
-  }, [rows, phase, block, query, statusFilter, residencyFilter]);
+      return matchesSearch && matchesStatus && matchesResidency;
+    });
+  }, [query, rows, selectedResidency, selectedStatus]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredRows.length / ROWS_PER_PAGE),
+  );
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
+
+  const startIndex = (currentPage - 1) * ROWS_PER_PAGE;
+  const endIndex = startIndex + ROWS_PER_PAGE;
+  const paginatedRows = filteredRows.slice(startIndex, endIndex);
+
+  const pageNumbers = useMemo(
+    () => getPageNumbers(currentPage, totalPages),
+    [currentPage, totalPages],
+  );
 
   const totalAmount = useMemo(
     () =>
-      filtered.reduce(
-        (sum, r) => sum + (Number.isFinite(r.amount) ? r.amount : 0),
+      filteredRows.reduce(
+        (sum, row) =>
+          sum + (Number.isFinite(row.amount) ? Number(row.amount) : 0),
         0,
       ),
-    [filtered],
+    [filteredRows],
   );
 
-  // ✅ Fullscreen photo viewer (based on currently filtered list)
-  const [viewerOpen, setViewerOpen] = useState(false);
-  const [viewerIndex, setViewerIndex] = useState(0);
+  const activeFilterCount =
+    Number(selectedStatus !== ALL_FILTER) +
+    Number(selectedResidency !== ALL_FILTER);
 
-  const photoItems = useMemo(() => {
-    return filtered
-      .filter((r) => !!r.photoUrl)
-      .map((r) => ({
-        id: r.id,
-        url: r.photoUrl as string,
-        name: fullName(r),
-        meta: `Lot ${r.lotNo} • ${r.phase} • ${r.block}`,
-      }));
-  }, [filtered]);
+  const showingStart = filteredRows.length === 0 ? 0 : startIndex + 1;
+  const showingEnd = Math.min(endIndex, filteredRows.length);
 
-  const openViewerByRow = (row: PaymentRow) => {
-    if (!row.photoUrl) return;
-    const idx = photoItems.findIndex((p) => p.id === row.id);
-    setViewerIndex(Math.max(0, idx));
-    setViewerOpen(true);
+  const clearFilters = () => {
+    setSelectedStatus(ALL_FILTER);
+    setSelectedResidency(ALL_FILTER);
   };
 
-  const closeViewer = () => setViewerOpen(false);
-  const goPrev = () =>
-    setViewerIndex((i) =>
-      photoItems.length ? (i - 1 + photoItems.length) % photoItems.length : 0,
+  if (selectedResident) {
+    return (
+      <ResidentPaymentSummaryView
+        resident={selectedResident}
+        onBack={() => setSelectedResident(null)}
+      />
     );
-  const goNext = () =>
-    setViewerIndex((i) =>
-      photoItems.length ? (i + 1) % photoItems.length : 0,
-    );
+  }
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="lg:hidden flex items-end justify-between gap-3">
+    <div className="space-y-6">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
             Payments
           </p>
-          <h1 className="text-2xl font-black tracking-tight text-zinc-900">
-            Payment History
+
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-zinc-950 sm:text-3xl">
+            Payment Summary
           </h1>
+
+          <p className="mt-1 text-sm font-medium text-zinc-500">
+            Select a resident to view their full payment summary history.
+          </p>
         </div>
 
-        <div className="hidden sm:flex items-center gap-2">
-          <Badge label="Records" value={String(filtered.length)} />
-          <Badge label="Total" value={peso(totalAmount)} />
+        <button
+          type="button"
+          onClick={() => void loadResidents()}
+          disabled={loading}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
+          Refresh
+        </button>
+      </header>
+
+      {dbError && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+          <p className="text-sm font-semibold text-rose-900">Firestore error</p>
+          <p className="mt-1 text-xs font-medium text-rose-800">{dbError}</p>
         </div>
-      </div>
+      )}
 
-      {/* Filters */}
-      <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-zinc-200 sm:p-5">
-        <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
-              <SelectListbox
-                label="Phase"
-                value={phase}
-                options={phases}
-                onChange={(v) => {
-                  setPhase(v);
-                  const nextBlocks = Array.from(
-                    new Set(
-                      rows.filter((r) => r.phase === v).map((r) => r.block),
-                    ),
-                  ).sort();
-                  setBlock(nextBlocks[0] ?? "Block 1");
-                }}
-              />
+      <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative flex-1">
+            <Search
+              size={18}
+              className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400"
+            />
 
-              <SelectListbox
-                label="Block"
-                value={block}
-                options={blocks}
-                onChange={setBlock}
-              />
-            </div>
-
-            <SearchBox
+            <AppInput
               value={query}
-              onChange={setQuery}
-              onOpenFilters={() => setIsFilterOpen(true)}
-              onClear={() => setQuery("")}
-              activeCount={activeFiltersCount}
+              className="h-12 w-full rounded-xl pl-11 text-sm font-medium"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search resident name, address, amount, status..."
             />
           </div>
 
-          <div className="flex items-center justify-between gap-3 text-xs font-semibold text-zinc-500 lg:justify-end">
-            <span>
-              Showing <span className="text-zinc-900">{filtered.length}</span>{" "}
-              record
-              {filtered.length === 1 ? "" : "s"}
-            </span>
-            <span className="hidden sm:inline">•</span>
-            <span>
-              Total Amount:{" "}
-              <span className="text-zinc-900">{peso(totalAmount)}</span>
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-zinc-200">
-        {/* Desktop table */}
-        <div className="hidden md:block">
-          <div className="overflow-x-auto">
-            <table className="min-w-[1120px] w-full">
-              <thead className="bg-zinc-50">
-                <tr className="text-left text-[11px] font-extrabold uppercase tracking-wider text-zinc-500">
-                  <Th>Lot</Th>
-                  <Th>Name</Th>
-                  <Th>Contact</Th>
-                  <Th>Residency</Th>
-                  <Th>Amount</Th>
-                  <Th>Date</Th>
-                  <Th>Status</Th>
-                  <Th>Photo</Th>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-zinc-200">
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td
-                      className="px-4 py-10 text-center text-sm font-semibold text-zinc-500"
-                      colSpan={8}
-                    >
-                      No records found.
-                    </td>
-                  </tr>
-                ) : (
-                  filtered.map((r) => (
-                    <tr key={r.id} className="hover:bg-zinc-50">
-                      <TdStrong>{r.lotNo}</TdStrong>
-
-                      <Td>
-                        <p className="truncate text-sm font-semibold text-zinc-900">
-                          {fullName(r)}
-                        </p>
-                        <p className="mt-0.5 text-xs font-medium text-zinc-500">
-                          {r.contactNumber ?? "—"}
-                        </p>
-                      </Td>
-
-                      <Td>{r.contactNumber ?? "—"}</Td>
-                      <Td>{r.residencyType ?? "—"}</Td>
-                      <TdStrong>{peso(r.amount)}</TdStrong>
-                      <Td>{formatShortDate(r.date)}</Td>
-
-                      {/* ✅ READ ONLY status */}
-                      <Td>
-                        <StatusPillModern status={r.status} />
-                      </Td>
-
-                      {/* ✅ READ ONLY photo (click to fullscreen if exists) */}
-                      <Td>
-                        <div className="flex items-center gap-2">
-                          <AvatarThumbReadOnly
-                            url={r.photoUrl ?? undefined}
-                            name={fullName(r)}
-                            onClick={() => openViewerByRow(r)}
-                          />
-                          {r.photoUrl ? (
-                            <span className="text-xs font-semibold text-zinc-600">
-                              Attached
-                            </span>
-                          ) : (
-                            <span className="text-xs font-semibold text-zinc-400">
-                              —
-                            </span>
-                          )}
-                        </div>
-                      </Td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex items-center justify-end gap-2 border-t border-zinc-200 bg-white px-4 py-3">
-            <span className="text-xs font-semibold text-zinc-500">
-              Total Amount:
-            </span>
-            <span className="text-sm font-extrabold text-zinc-900">
-              {peso(totalAmount)}
-            </span>
-          </div>
-        </div>
-
-        {/* Mobile cards */}
-        <div className="md:hidden">
-          <div className="p-4">
-            {filtered.length === 0 ? (
-              <EmptyState />
-            ) : (
-              <div className="space-y-3">
-                {filtered.map((r) => (
-                  <div
-                    key={r.id}
-                    className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-zinc-900">
-                          Lot {r.lotNo} • {r.firstName} {r.lastName}
-                        </p>
-                        <p className="mt-1 text-xs font-medium text-zinc-500">
-                          {r.residencyType ?? "—"} • {r.contactNumber ?? "—"}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <AvatarThumbReadOnly
-                          url={r.photoUrl ?? undefined}
-                          name={fullName(r)}
-                          onClick={() => openViewerByRow(r)}
-                        />
-                        <StatusPillModern status={r.status} />
-                      </div>
-                    </div>
-
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <MiniField label="Amount" value={peso(r.amount)} />
-                      <MiniField label="Date" value={formatShortDate(r.date)} />
-                      <MiniField label="Middle" value={r.middleName ?? "—"} />
-                      <MiniField label="Status" value={r.status} />
-                    </div>
-
-                    <div className="mt-3">
-                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-                        Photo
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <AvatarThumbReadOnly
-                          url={r.photoUrl ?? undefined}
-                          name={fullName(r)}
-                          onClick={() => openViewerByRow(r)}
-                        />
-                        <span
-                          className={cx(
-                            "text-xs font-semibold",
-                            r.photoUrl ? "text-zinc-600" : "text-zinc-400",
-                          )}
-                        >
-                          {r.photoUrl ? "Tap to view" : "No attachment"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          <button
+            type="button"
+            onClick={() => setShowFilters((current) => !current)}
+            className={`inline-flex h-12 items-center justify-center gap-2 rounded-xl border px-5 text-sm font-semibold transition ${
+              showFilters || activeFilterCount > 0
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
+            }`}
+          >
+            <SlidersHorizontal size={17} />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="grid size-5 place-items-center rounded-full bg-emerald-600 text-[11px] font-semibold text-white">
+                {activeFilterCount}
+              </span>
             )}
+          </button>
+        </div>
+
+        {showFilters && (
+          <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
+              <FilterButtonGroup
+                label="Payment Status"
+                value={selectedStatus}
+                options={STATUS_FILTER_OPTIONS}
+                onChange={setSelectedStatus}
+              />
+
+              <FilterButtonGroup
+                label="Residency"
+                value={selectedResidency}
+                options={RESIDENCY_FILTER_OPTIONS}
+                onChange={setSelectedResidency}
+              />
+
+              <button
+                type="button"
+                onClick={clearFilters}
+                disabled={activeFilterCount === 0}
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-zinc-900 px-5 text-sm font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
+              >
+                Clear Filters
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-1 border-b border-zinc-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-900">
+              Residents Payment Summary
+            </h2>
+            <p className="text-sm font-medium text-zinc-500">
+              Showing {filteredRows.length} of {rows.length} residents
+            </p>
           </div>
 
-          <div className="flex items-center justify-between gap-2 border-t border-zinc-200 bg-white px-4 py-3">
-            <span className="text-xs font-semibold text-zinc-500">
-              Total Amount
-            </span>
-            <span className="text-sm font-extrabold text-zinc-900">
-              {peso(totalAmount)}
-            </span>
+          <div className="text-sm font-semibold text-zinc-700">
+            Total Monthly Due:{" "}
+            <span className="text-zinc-950">{peso(totalAmount)}</span>
           </div>
         </div>
-      </div>
 
-      {/* ✅ Fullscreen Photo Viewer */}
-      <PhotoViewer
-        open={viewerOpen}
-        onClose={closeViewer}
-        items={photoItems}
-        index={viewerIndex}
-        onPrev={goPrev}
-        onNext={goNext}
-      />
+        {loading ? (
+          <TableLoadingState />
+        ) : filteredRows.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-zinc-200">
+                <thead className="bg-zinc-50">
+                  <tr>
+                    <TableHead>Resident</TableHead>
+                    <TableHead>Address</TableHead>
+                    <TableHead>Monthly Due</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </tr>
+                </thead>
 
-      {/* Filter Modal */}
-      <FilterModal
-        open={isFilterOpen}
-        onClose={() => setIsFilterOpen(false)}
-        status={statusFilter}
-        setStatus={setStatusFilter}
-        residency={residencyFilter}
-        setResidency={setResidencyFilter}
-        activeCount={activeFiltersCount}
-        onClear={clearFilters}
-      />
+                <tbody className="divide-y divide-zinc-100 bg-white">
+                  {paginatedRows.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="transition hover:bg-emerald-50/40"
+                    >
+                      <td className="whitespace-nowrap px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <AvatarThumb
+                            url={row.picture ?? undefined}
+                            name={fullName(row)}
+                          />
+
+                          <div>
+                            <p className="text-sm font-semibold text-zinc-900">
+                              {fullName(row) || "Unnamed resident"}
+                            </p>
+                            <p className="mt-0.5 text-xs font-medium text-zinc-500">
+                              {row.residencyType} • Lot {row.lotNo || "-"}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="min-w-[280px] px-5 py-4 text-sm font-medium text-zinc-600">
+                        {getResidentAddress(row)}
+                      </td>
+
+                      <td className="whitespace-nowrap px-5 py-4 text-sm font-semibold text-zinc-900">
+                        {peso(row.amount)}
+                      </td>
+
+                      <td className="whitespace-nowrap px-5 py-4">
+                        <StatusBadge status={row.status} />
+                      </td>
+
+                      <td className="whitespace-nowrap px-5 py-4 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedResident(row)}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-black"
+                        >
+                          <Eye size={15} />
+                          View Payment Summary
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageNumbers={pageNumbers}
+              showingStart={showingStart}
+              showingEnd={showingEnd}
+              totalResults={filteredRows.length}
+              onPageChange={setCurrentPage}
+            />
+          </>
+        )}
+      </section>
     </div>
   );
 }
 
-/* ---------- READ-ONLY photo thumb (clickable if has url) ---------- */
-
-function AvatarThumbReadOnly({
-  url,
-  name,
-  onClick,
+function ResidentPaymentSummaryView({
+  resident,
+  onBack,
 }: {
-  url?: string;
-  name: string;
-  onClick?: () => void;
+  resident: ResidentPaymentRow;
+  onBack: () => void;
 }) {
-  const clickable = !!url && !!onClick;
+  const history = resident.history;
+  const [historyPage, setHistoryPage] = useState(1);
 
-  return (
-    <button
-      type="button"
-      onClick={clickable ? onClick : undefined}
-      className={cx(
-        "relative grid size-10 shrink-0 place-items-center overflow-hidden rounded-2xl",
-        "bg-emerald-50 ring-1 ring-emerald-100",
-        clickable
-          ? "cursor-pointer transition hover:scale-[1.03] hover:ring-emerald-200 active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-emerald-200/60"
-          : "cursor-default",
-      )}
-      aria-label={
-        url ? `View attachment for ${name}` : `No attachment for ${name}`
-      }
-      disabled={!clickable}
-    >
-      {url ? (
-        <>
-          <img src={url} alt={name} className="h-full w-full object-cover" />
-          <span className="pointer-events-none absolute bottom-1 right-1 grid size-5 place-items-center rounded-lg bg-black/40 text-white">
-            <Maximize2 size={12} />
-          </span>
-        </>
-      ) : (
-        <span className="text-[11px] font-extrabold text-emerald-700">No</span>
-      )}
-    </button>
-  );
-}
-
-/* ---------- Fullscreen Photo Viewer (modern lightbox) ---------- */
-
-function PhotoViewer({
-  open,
-  onClose,
-  items,
-  index,
-  onPrev,
-  onNext,
-}: {
-  open: boolean;
-  onClose: () => void;
-  items: Array<{ id: string; url: string; name: string; meta?: string }>;
-  index: number;
-  onPrev: () => void;
-  onNext: () => void;
-}) {
-  const current = items[index];
-
-  // keyboard navigation
   useEffect(() => {
-    if (!open) return;
+    setHistoryPage(1);
+  }, [resident.id]);
 
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      if (e.key === "ArrowLeft") onPrev();
-      if (e.key === "ArrowRight") onNext();
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onClose, onPrev, onNext]);
-
-  return (
-    <Transition appear show={open} as={Fragment}>
-      <Dialog as="div" className="relative z-[60]" onClose={onClose}>
-        <Transition.Child
-          as={Fragment}
-          enter="ease-out duration-200"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in duration-120"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 bg-zinc-950/70 backdrop-blur-md" />
-        </Transition.Child>
-
-        <div className="fixed inset-0 overflow-y-auto">
-          <div className="min-h-full p-3 sm:p-6">
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-200"
-              enterFrom="opacity-0 translate-y-2 sm:scale-[0.98]"
-              enterTo="opacity-100 translate-y-0 sm:scale-100"
-              leave="ease-in duration-120"
-              leaveFrom="opacity-100 translate-y-0 sm:scale-100"
-              leaveTo="opacity-0 translate-y-2 sm:scale-[0.98]"
-            >
-              <Dialog.Panel
-                className={cx(
-                  "mx-auto w-full max-w-6xl overflow-hidden rounded-3xl",
-                  "bg-white shadow-2xl ring-1 ring-emerald-100",
-                )}
-              >
-                {/* Top bar */}
-                <div className="flex items-center justify-between gap-3 border-b border-emerald-100 bg-white px-4 py-3 sm:px-5">
-                  <div className="min-w-0">
-                    <Dialog.Title className="truncate text-sm font-black text-zinc-900 sm:text-base">
-                      {current?.name ?? "Attachment"}
-                    </Dialog.Title>
-                    <p className="truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
-                      {current?.meta ?? "Payment attachment"}{" "}
-                      {items.length ? `• ${index + 1}/${items.length}` : ""}
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="cursor-pointer grid size-10 place-items-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 active:bg-emerald-200"
-                    aria-label="Close viewer"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-
-                {/* Body */}
-                <div className="relative bg-zinc-950">
-                  {/* Image */}
-                  <div className="flex items-center justify-center">
-                    {current?.url ? (
-                      <img
-                        src={current.url}
-                        alt={current.name}
-                        className={cx(
-                          "max-h-[72vh] w-full object-contain",
-                          "bg-zinc-950",
-                        )}
-                      />
-                    ) : (
-                      <div className="grid h-[60vh] w-full place-items-center text-sm font-semibold text-white/80">
-                        No image
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Prev/Next (only if multiple) */}
-                  {items.length > 1 ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={onPrev}
-                        className={cx(
-                          "cursor-pointer absolute left-3 top-1/2 -translate-y-1/2",
-                          "grid size-11 place-items-center rounded-2xl",
-                          "bg-white/10 text-white ring-1 ring-white/15 backdrop-blur",
-                          "hover:bg-white/15 active:bg-white/20",
-                        )}
-                        aria-label="Previous photo"
-                      >
-                        <ChevronLeft size={18} />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={onNext}
-                        className={cx(
-                          "cursor-pointer absolute right-3 top-1/2 -translate-y-1/2",
-                          "grid size-11 place-items-center rounded-2xl",
-                          "bg-white/10 text-white ring-1 ring-white/15 backdrop-blur",
-                          "hover:bg-white/15 active:bg-white/20",
-                        )}
-                        aria-label="Next photo"
-                      >
-                        <ChevronRight size={18} />
-                      </button>
-                    </>
-                  ) : null}
-
-                  {/* Hint */}
-                  <div className="flex items-center justify-between gap-2 border-t border-white/10 bg-zinc-950 px-4 py-3 text-[11px] font-semibold text-white/70">
-                    <span>Tip: Use ← → keys to navigate</span>
-                    <span>ESC to close</span>
-                  </div>
-                </div>
-              </Dialog.Panel>
-            </Transition.Child>
-          </div>
-        </div>
-      </Dialog>
-    </Transition>
+  const historyTotalPages = Math.max(
+    1,
+    Math.ceil(history.length / ROWS_PER_PAGE),
   );
-}
 
-/* ---------- Small UI components ---------- */
+  useEffect(() => {
+    setHistoryPage((page) => Math.min(page, historyTotalPages));
+  }, [historyTotalPages]);
 
-function SearchBox({
-  value,
-  onChange,
-  onOpenFilters,
-  onClear,
-  activeCount = 0,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  onOpenFilters: () => void;
-  onClear: () => void;
-  activeCount?: number;
-}) {
+  const historyStartIndex = (historyPage - 1) * ROWS_PER_PAGE;
+  const historyEndIndex = historyStartIndex + ROWS_PER_PAGE;
+  const paginatedHistory = history.slice(historyStartIndex, historyEndIndex);
+
+  const historyPageNumbers = useMemo(
+    () => getPageNumbers(historyPage, historyTotalPages),
+    [historyPage, historyTotalPages],
+  );
+
+  const historyShowingStart = history.length === 0 ? 0 : historyStartIndex + 1;
+  const historyShowingEnd = Math.min(historyEndIndex, history.length);
+
+  const totals = useMemo(() => {
+    const beginning = history.reduce(
+      (sum, row) =>
+        sum +
+        (Number.isFinite(row.beginningBalance) ? row.beginningBalance : 0),
+      0,
+    );
+
+    const charges = history.reduce(
+      (sum, row) =>
+        sum + (Number.isFinite(row.currentCharges) ? row.currentCharges : 0),
+      0,
+    );
+
+    const collection = history.reduce(
+      (sum, row) =>
+        sum + (Number.isFinite(row.collection) ? row.collection : 0),
+      0,
+    );
+
+    return { beginning, charges, collection };
+  }, [history]);
+
+  const net = totals.beginning + totals.charges - totals.collection;
+  const name = fullName(resident) || "Unnamed resident";
+
   return (
-    <div className="relative w-full sm:max-w-xl">
-      <Search
-        size={18}
-        className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400"
-      />
-      <AppInput
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Search lot, name, contact,date..."
-        className="h-12 w-full pl-11 pr-23"
-      />
+    <div className="space-y-6">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
+            Payments
+          </p>
 
-      {value.trim() ? (
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-zinc-950 sm:text-3xl">
+            Payment Summary
+          </h1>
+
+          <p className="mt-1 text-sm font-medium text-zinc-500">
+            Full payment history for {name}.
+          </p>
+        </div>
+
         <button
           type="button"
-          className="cursor-pointer absolute right-[46px] top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-xl border border-zinc-200 bg-white text-zinc-700 shadow-sm hover:bg-zinc-50 active:bg-zinc-100"
-          aria-label="Clear search"
-          onClick={onClear}
+          onClick={onBack}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-black"
         >
-          <X size={18} />
+          <ArrowLeft size={17} />
+          Back to Residents
         </button>
-      ) : null}
+      </header>
 
-      <button
-        type="button"
-        className="cursor-pointer absolute right-2 top-1/2 -translate-y-1/2 grid size-10 place-items-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 shadow-sm hover:bg-emerald-100 active:bg-emerald-200"
-        aria-label="Filters"
-        onClick={onOpenFilters}
-      >
-        <SlidersHorizontal size={18} />
-        {activeCount > 0 ? (
-          <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full bg-emerald-600 text-[10px] font-extrabold text-white">
-            {activeCount}
-          </span>
-        ) : null}
-      </button>
+      <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <AvatarThumb url={resident.picture ?? undefined} name={name} />
+
+            <div className="min-w-0">
+              <p className="truncate text-base font-bold text-zinc-900">
+                {name}
+              </p>
+              <p className="mt-0.5 text-xs font-semibold text-zinc-500">
+                {resident.residencyType} • {getResidentAddress(resident)}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <StatusBadge status={resident.status} />
+            <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600 ring-1 ring-zinc-200">
+              {history.length} month{history.length === 1 ? "" : "s"}
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <StatCard
+            label="Remaining Balance"
+            value={peso(totals.beginning)}
+            tone="neutral"
+          />
+          <StatCard
+            label="Current Charges"
+            value={peso(totals.charges)}
+            tone="emerald"
+          />
+          <StatCard
+            label="Total Paid"
+            value={peso(totals.collection)}
+            tone="emeraldStrong"
+          />
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-1 border-b border-zinc-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-900">
+              Payment History
+            </h2>
+            <p className="text-sm font-medium text-zinc-500">
+              Showing {history.length} monthly payment summary records
+            </p>
+          </div>
+
+          <div className="text-sm font-semibold text-zinc-700">
+            Net Balance:{" "}
+            <span className={net <= 0 ? "text-emerald-700" : "text-rose-700"}>
+              {peso(net)}
+            </span>
+          </div>
+        </div>
+
+        {history.length === 0 ? (
+          <EmptySummaryState />
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="min-w-[920px] w-full divide-y divide-zinc-200">
+                <thead className="bg-zinc-50">
+                  <tr>
+                    <TableHead>Month</TableHead>
+                    <TableHead className="text-right">
+                      Beginning Balance
+                    </TableHead>
+                    <TableHead className="text-right">
+                      Current Charges
+                    </TableHead>
+                    <TableHead className="text-right">Collection</TableHead>
+                    <TableHead className="text-right">Net</TableHead>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-zinc-100 bg-white">
+                  {paginatedHistory.map((row) => {
+                    const rowNet =
+                      row.beginningBalance +
+                      row.currentCharges -
+                      row.collection;
+
+                    return (
+                      <tr
+                        key={row.id}
+                        className="transition hover:bg-emerald-50/40"
+                      >
+                        <td className="whitespace-nowrap px-5 py-4">
+                          <p className="text-sm font-semibold text-zinc-900">
+                            {row.monthLabel}
+                          </p>
+                          <p className="mt-0.5 text-xs font-medium text-zinc-500">
+                            {resident.phase} • {resident.block} • {resident.lot}
+                          </p>
+                        </td>
+
+                        <td className="whitespace-nowrap px-5 py-4 text-right text-sm font-semibold text-zinc-800">
+                          {peso(row.beginningBalance)}
+                        </td>
+
+                        <td className="whitespace-nowrap px-5 py-4 text-right text-sm font-semibold text-zinc-800">
+                          {peso(row.currentCharges)}
+                        </td>
+
+                        <td className="whitespace-nowrap px-5 py-4 text-right text-sm font-semibold text-zinc-800">
+                          {peso(row.collection)}
+                        </td>
+
+                        <td className="whitespace-nowrap px-5 py-4 text-right">
+                          <span
+                            className={cx(
+                              "inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ring-1",
+                              rowNet <= 0
+                                ? "bg-emerald-50 text-emerald-900 ring-emerald-100"
+                                : "bg-rose-50 text-rose-900 ring-rose-100",
+                            )}
+                          >
+                            {peso(rowNet)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+
+                <tfoot className="bg-white">
+                  <tr className="border-t border-zinc-200">
+                    <td className="px-5 py-4 text-sm font-bold text-zinc-900">
+                      Total
+                    </td>
+
+                    <td className="px-5 py-4 text-right text-sm font-bold text-zinc-900">
+                      {peso(totals.beginning)}
+                    </td>
+
+                    <td className="px-5 py-4 text-right text-sm font-bold text-zinc-900">
+                      {peso(totals.charges)}
+                    </td>
+
+                    <td className="px-5 py-4 text-right text-sm font-bold text-zinc-900">
+                      {peso(totals.collection)}
+                    </td>
+
+                    <td className="px-5 py-4 text-right text-sm font-bold text-zinc-900">
+                      {peso(net)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            <Pagination
+              currentPage={historyPage}
+              totalPages={historyTotalPages}
+              pageNumbers={historyPageNumbers}
+              showingStart={historyShowingStart}
+              showingEnd={historyShowingEnd}
+              totalResults={history.length}
+              onPageChange={setHistoryPage}
+            />
+          </>
+        )}
+      </section>
     </div>
   );
 }
 
-function Badge({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 shadow-sm">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
-        {label}
-      </p>
-      <p className="text-sm font-extrabold text-zinc-900">{value}</p>
-    </div>
-  );
-}
-
-function Th({ children }: { children: React.ReactNode }) {
-  return <th className="px-4 py-3">{children}</th>;
-}
-
-function Td({ children }: { children: React.ReactNode }) {
-  return (
-    <td className="px-4 py-3 text-sm font-medium text-zinc-700">{children}</td>
-  );
-}
-
-function TdStrong({ children }: { children: React.ReactNode }) {
-  return (
-    <td className="px-4 py-3 text-sm font-bold text-zinc-900">{children}</td>
-  );
-}
-
-/* ---------- Phase/Block LISTBOX ---------- */
-
-function SelectListbox({
+function FilterButtonGroup<T extends string>({
   label,
   value,
   options,
   onChange,
 }: {
   label: string;
-  value: string;
-  options: string[];
-  onChange: (v: string) => void;
+  value: T;
+  options: T[];
+  onChange: (value: T) => void;
 }) {
   return (
-    <div className="relative">
-      <p className="sr-only">{label}</p>
+    <div>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        {label}
+      </p>
 
-      <Listbox value={value} onChange={onChange}>
-        <ListboxButton
-          className={cx(
-            "cursor-pointer group flex h-12 w-full items-center justify-between rounded-2xl px-4",
-            "bg-linear-to-r from-emerald-600 to-emerald-700 text-white",
-            "text-sm font-extrabold shadow-sm ring-1 ring-emerald-700/30 outline-none",
-            "focus:ring-4 focus:ring-emerald-200/60",
-          )}
-        >
-          <span className="text-sm font-extrabold tracking-wide">{value}</span>
-          <ChevronDown size={18} className="text-white/90" />
-        </ListboxButton>
-
-        <Transition
-          as={Fragment}
-          enter="transition ease-out duration-120"
-          enterFrom="opacity-0 translate-y-1"
-          enterTo="opacity-100 translate-y-0"
-          leave="transition ease-in duration-100"
-          leaveFrom="opacity-100 translate-y-0"
-          leaveTo="opacity-0 translate-y-1"
-        >
-          <ListboxOptions
-            className={cx(
-              "absolute z-40 mt-2 w-full rounded-2xl border border-emerald-200 bg-white p-1 shadow-2xl outline-none",
-              "ring-1 ring-black/5",
-            )}
+      <div className="flex flex-wrap gap-2">
+        {options.map((option) => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onChange(option)}
+            className={`inline-flex h-11 items-center justify-center rounded-xl px-5 text-sm font-semibold transition ${
+              value === option
+                ? "bg-emerald-600 text-white shadow-sm"
+                : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
+            }`}
           >
-            {options.map((opt) => (
-              <ListboxOption
-                key={opt}
-                value={opt}
-                className={({ active }) =>
-                  cx(
-                    "cursor-pointer select-none rounded-xl px-3 py-2.5",
-                    "flex items-center justify-between gap-3",
-                    "text-sm font-bold",
-                    active
-                      ? "bg-emerald-100 text-emerald-950"
-                      : "text-zinc-900",
-                  )
-                }
-              >
-                {({ selected }) => (
-                  <>
-                    <span className="whitespace-normal leading-5">{opt}</span>
-                    {selected ? (
-                      <span className="grid size-7 place-items-center rounded-lg bg-emerald-600 text-white shadow-sm">
-                        <Check size={16} />
-                      </span>
-                    ) : (
-                      <span className="size-7" />
-                    )}
-                  </>
-                )}
-              </ListboxOption>
-            ))}
-          </ListboxOptions>
-        </Transition>
-      </Listbox>
+            {option}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
 
-/* ---------- Status pill (READ ONLY) ---------- */
+function Pagination({
+  currentPage,
+  totalPages,
+  pageNumbers,
+  showingStart,
+  showingEnd,
+  totalResults,
+  onPageChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  pageNumbers: number[];
+  showingStart: number;
+  showingEnd: number;
+  totalResults: number;
+  onPageChange: (page: number) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3 border-t border-zinc-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm font-medium text-zinc-500">
+        Showing{" "}
+        <span className="font-semibold text-zinc-800">{showingStart}</span> to{" "}
+        <span className="font-semibold text-zinc-800">{showingEnd}</span> of{" "}
+        <span className="font-semibold text-zinc-800">{totalResults}</span>{" "}
+        results
+      </p>
 
-function StatusPillModern({ status }: { status: PaymentStatus }) {
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+          disabled={currentPage === 1}
+          className="inline-flex size-9 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-600 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Previous page"
+        >
+          <ChevronLeft size={17} />
+        </button>
+
+        {pageNumbers.map((page) => (
+          <button
+            key={page}
+            type="button"
+            onClick={() => onPageChange(page)}
+            className={`inline-flex size-9 items-center justify-center rounded-xl text-sm font-semibold transition ${
+              currentPage === page
+                ? "bg-emerald-600 text-white shadow-sm"
+                : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
+            }`}
+          >
+            {page}
+          </button>
+        ))}
+
+        <button
+          type="button"
+          onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+          disabled={currentPage === totalPages}
+          className="inline-flex size-9 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-600 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40"
+          aria-label="Next page"
+        >
+          <ChevronRight size={17} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AvatarThumb({ url, name }: { url?: string; name: string }) {
+  return (
+    <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-zinc-100 text-sm font-semibold text-zinc-500 ring-1 ring-zinc-200">
+      {url ? (
+        <img src={url} alt={name} className="h-full w-full object-cover" />
+      ) : (
+        <UserRound size={18} className="text-zinc-400" />
+      )}
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: PaymentStatus }) {
   const paid = status === "Paid";
+
   return (
     <span
       className={cx(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-extrabold ring-1",
+        "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1",
         paid
-          ? "bg-emerald-50 text-emerald-900 ring-emerald-100"
-          : "bg-rose-50 text-rose-900 ring-rose-100",
+          ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
+          : "bg-rose-50 text-rose-700 ring-rose-100",
       )}
     >
-      <span
-        className={cx(
-          "inline-block size-2 rounded-full",
-          paid ? "bg-emerald-500" : "bg-rose-500",
-        )}
-      />
       {status}
     </span>
   );
 }
 
-function MiniField({ label, value }: { label: string; value: string }) {
+function StatCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "neutral" | "emerald" | "emeraldStrong";
+}) {
+  const toneClass =
+    tone === "neutral"
+      ? "bg-zinc-50 ring-zinc-200 text-zinc-900"
+      : tone === "emerald"
+        ? "bg-emerald-50 ring-emerald-100 text-emerald-900"
+        : "bg-gradient-to-r from-emerald-600 to-emerald-700 ring-emerald-700/20 text-white";
+
+  const labelClass =
+    tone === "emeraldStrong" ? "text-white/85" : "text-zinc-500";
+
   return (
-    <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+    <div className={cx("rounded-2xl px-4 py-3 ring-1", toneClass)}>
+      <p
+        className={cx(
+          "text-[10px] font-semibold uppercase tracking-[0.16em]",
+          labelClass,
+        )}
+      >
         {label}
       </p>
-      <p className="truncate text-sm font-bold text-zinc-900">{value}</p>
+      <p
+        className={cx(
+          "mt-1 text-base font-bold",
+          tone === "emeraldStrong" ? "text-white" : "",
+        )}
+      >
+        {value}
+      </p>
     </div>
+  );
+}
+
+function TableHead({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <th
+      className={`px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500 ${className}`}
+    >
+      {children}
+    </th>
   );
 }
 
 function EmptyState() {
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-6 text-center">
-      <p className="text-sm font-semibold text-zinc-700">No records found.</p>
-      <p className="mt-1 text-xs font-medium text-zinc-500">
-        Try changing phase/block or search keyword.
+    <div className="p-10 text-center">
+      <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-zinc-100">
+        <Search className="text-zinc-400" />
+      </div>
+
+      <p className="mt-4 text-base font-semibold text-zinc-900">
+        No residents found.
+      </p>
+
+      <p className="mt-1 text-sm font-medium text-zinc-500">
+        Try another search keyword or adjust the filters.
       </p>
     </div>
   );
 }
 
-/* ---------- FILTER MODAL ---------- */
-
-function FilterModal({
-  open,
-  onClose,
-  status,
-  setStatus,
-  residency,
-  setResidency,
-  activeCount,
-  onClear,
-}: {
-  open: boolean;
-  onClose: () => void;
-  status: StatusFilter;
-  setStatus: (v: StatusFilter) => void;
-  residency: ResidencyFilter;
-  setResidency: (v: ResidencyFilter) => void;
-  activeCount: number;
-  onClear: () => void;
-}) {
+function EmptySummaryState() {
   return (
-    <Transition appear show={open} as={Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={onClose}>
-        <Transition.Child
-          as={Fragment}
-          enter="ease-out duration-150"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in duration-100"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 bg-zinc-900/40 backdrop-blur-sm" />
-        </Transition.Child>
+    <div className="p-10 text-center">
+      <div className="mx-auto grid size-14 place-items-center rounded-2xl bg-zinc-100">
+        <Search className="text-zinc-400" />
+      </div>
 
-        <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-end justify-center p-3 sm:items-center sm:p-6">
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-150"
-              enterFrom="opacity-0 translate-y-2 sm:translate-y-0 sm:scale-[0.98]"
-              enterTo="opacity-100 translate-y-0 sm:scale-100"
-              leave="ease-in duration-100"
-              leaveFrom="opacity-100 translate-y-0 sm:scale-100"
-              leaveTo="opacity-0 translate-y-2 sm:translate-y-0 sm:scale-[0.98]"
-            >
-              <Dialog.Panel className="w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-xl ring-1 ring-emerald-100">
-                <div className="flex items-start justify-between gap-3 border-b border-emerald-100 p-5">
-                  <div>
-                    <Dialog.Title className="text-lg font-black tracking-tight text-zinc-900">
-                      Filters
-                    </Dialog.Title>
-                    <p className="mt-1 text-xs font-medium text-zinc-500">
-                      Narrow down the payment records.
-                    </p>
-                  </div>
+      <p className="mt-4 text-base font-semibold text-zinc-900">
+        No payment history found.
+      </p>
 
-                  <button
-                    onClick={onClose}
-                    className="cursor-pointer grid size-10 place-items-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 active:bg-emerald-200"
-                    aria-label="Close"
-                    type="button"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-
-                <div className="space-y-5 p-5">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
-                      Status
-                    </p>
-                    <div className="mt-2 grid grid-cols-3 gap-2">
-                      <FilterChip
-                        active={status === "All"}
-                        onClick={() => setStatus("All")}
-                      >
-                        All
-                      </FilterChip>
-                      <FilterChip
-                        active={status === "Paid"}
-                        onClick={() => setStatus("Paid")}
-                      >
-                        Paid
-                      </FilterChip>
-                      <FilterChip
-                        active={status === "Not Paid"}
-                        onClick={() => setStatus("Not Paid")}
-                      >
-                        Not Paid
-                      </FilterChip>
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
-                      Residency
-                    </p>
-                    <div className="mt-2 grid grid-cols-3 gap-2">
-                      <FilterChip
-                        active={residency === "All"}
-                        onClick={() => setResidency("All")}
-                      >
-                        All
-                      </FilterChip>
-                      <FilterChip
-                        active={residency === "Owner"}
-                        onClick={() => setResidency("Owner")}
-                      >
-                        Owner
-                      </FilterChip>
-                      <FilterChip
-                        active={residency === "Renter"}
-                        onClick={() => setResidency("Renter")}
-                      >
-                        Renter
-                      </FilterChip>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between gap-3 border-t border-emerald-100 bg-white p-5">
-                  <div className="text-xs font-semibold text-zinc-500">
-                    Active filters:{" "}
-                    <span className="text-zinc-900">{activeCount}</span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={onClear}
-                      className="cursor-pointer h-10 rounded-2xl border border-emerald-200 bg-white px-4 text-xs font-extrabold text-emerald-800 hover:bg-emerald-50 active:bg-emerald-100"
-                    >
-                      Clear
-                    </button>
-                    <button
-                      type="button"
-                      onClick={onClose}
-                      className="cursor-pointer h-10 rounded-2xl bg-linear-to-r from-emerald-600 to-emerald-700 px-4 text-xs font-extrabold text-white hover:from-emerald-500 hover:to-emerald-700 active:from-emerald-700 active:to-emerald-800"
-                    >
-                      Done
-                    </button>
-                  </div>
-                </div>
-              </Dialog.Panel>
-            </Transition.Child>
-          </div>
-        </div>
-      </Dialog>
-    </Transition>
+      <p className="mt-1 text-sm font-medium text-zinc-500">
+        This resident has no payment summary rows yet.
+      </p>
+    </div>
   );
 }
 
-function FilterChip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
+function TableLoadingState() {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cx(
-        "cursor-pointer h-10 rounded-2xl px-3 text-xs font-extrabold transition",
-        "ring-1 outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white",
-        active
-          ? "bg-linear-to-r from-emerald-600 to-emerald-700 text-white ring-emerald-600/30 focus:ring-emerald-300"
-          : "bg-white text-emerald-900 ring-emerald-200 hover:bg-emerald-50 focus:ring-emerald-200",
-      )}
-    >
-      {children}
-    </button>
+    <div className="p-5">
+      <div className="space-y-3">
+        {Array.from({ length: ROWS_PER_PAGE }).map((_, index) => (
+          <div
+            key={index}
+            className="grid grid-cols-4 gap-4 rounded-2xl border border-zinc-100 p-4"
+          >
+            <div className="h-5 animate-pulse rounded-full bg-zinc-100" />
+            <div className="h-5 animate-pulse rounded-full bg-zinc-100" />
+            <div className="h-5 animate-pulse rounded-full bg-zinc-100" />
+            <div className="h-5 animate-pulse rounded-full bg-zinc-100" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

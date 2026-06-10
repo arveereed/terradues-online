@@ -8,7 +8,6 @@ import {
   LogOut,
   Users,
   CreditCard,
-  ReceiptText,
   BarChart3,
   Bell,
   ChevronRight,
@@ -25,15 +24,14 @@ const navItems: NavItem[] = [
   { label: "Home/Dashboard", to: "/admin", icon: Home },
   { label: "List of Residents", to: "/admin/users", icon: Users },
   { label: "Payment Status", to: "/admin/payments", icon: CreditCard },
-  { label: "Payment History", to: "/admin/payment-history", icon: ReceiptText },
-  { label: "Payment Summary", to: "/admin/payment-summary", icon: BarChart3 },
+  { label: "Payment History", to: "/admin/payment-history", icon: BarChart3 },
   { label: "Notification", to: "/admin/notification", icon: Bell },
   { label: "Settings", to: "/admin/settings", icon: Settings },
 ];
 
 export default function AdminLayout() {
   const [open, setOpen] = useState(false);
-  const userName = "Bryle B. Milliomeda";
+  const userName = "Admin";
   const location = useLocation();
 
   // body scroll lock for mobile drawer
@@ -248,19 +246,6 @@ export default function AdminLayout() {
                 <p className="text-xs font-medium text-zinc-500">TERRA</p>
                 <p className="text-base font-extrabold tracking-tight text-zinc-900">
                   DUES
-                </p>
-              </div>
-            </div>
-
-            {/* User card */}
-            <div className="mt-5 flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
-              <div className="grid size-10 place-items-center rounded-full bg-emerald-600 text-white font-extrabold">
-                {initials}
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs text-emerald-900/70">Welcome</p>
-                <p className="truncate text-sm font-extrabold text-emerald-950">
-                  {userName}
                 </p>
               </div>
             </div>
