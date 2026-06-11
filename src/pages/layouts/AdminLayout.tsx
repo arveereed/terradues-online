@@ -4,12 +4,10 @@ import {
   Menu,
   X,
   Home,
-  Settings,
   LogOut,
   Users,
   CreditCard,
   BarChart3,
-  Bell,
   ChevronRight,
 } from "lucide-react";
 import { useClerk } from "@clerk/clerk-react";
@@ -25,8 +23,6 @@ const navItems: NavItem[] = [
   { label: "List of Residents", to: "/admin/users", icon: Users },
   { label: "Payment Status", to: "/admin/payments", icon: CreditCard },
   { label: "Payment History", to: "/admin/payment-history", icon: BarChart3 },
-  { label: "Notification", to: "/admin/notification", icon: Bell },
-  { label: "Settings", to: "/admin/settings", icon: Settings },
 ];
 
 export default function AdminLayout() {
