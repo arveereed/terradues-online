@@ -61,11 +61,26 @@ export const getAllUsers = async () => {
 
 type PaymentStatus = "Paid" | "Not Paid";
 
+type PaymentHistoryRecord = {
+  id: string;
+  monthKey: string;
+  monthLabel: string;
+  beginningBalance: number;
+  currentCharges: number;
+  additionalCharges: number;
+  totalDue: number;
+  collection: number;
+  remainingBalance: number;
+  status: PaymentStatus;
+  datePaid: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+};
+
 type UpdateResidentPaymentParams = {
   residentId: string;
   status: PaymentStatus;
   amount: number;
-  additionalCharges?: number;
 };
 
 const getPhilippinePaymentDate = () => {
@@ -99,12 +114,96 @@ const toNumber = (value: unknown, fallback = 0) => {
   return Number.isFinite(numberValue) ? numberValue : fallback;
 };
 
+const cleanString = (value: unknown) =>
+  typeof value === "string" ? value.trim() : "";
+
+const getHistoryStatus = (
+  value: unknown,
+  collection: number,
+): PaymentStatus => {
+  if (value === "Paid" || value === "Not Paid") return value;
+
+  return collection > 0 ? "Paid" : "Not Paid";
+};
+
+const compareMonthKey = (a: string, b: string) => a.localeCompare(b);
+
+const normalizePaymentHistory = (
+  rawHistory: unknown,
+  monthlyCharge: number,
+): PaymentHistoryRecord[] => {
+  if (!Array.isArray(rawHistory)) return [];
+
+  return rawHistory.map((item, index) => {
+    const row = item as Record<string, unknown>;
+
+    const currentCharges = toNumber(
+      row.currentCharges ?? row.charges ?? row.amount,
+      monthlyCharge,
+    );
+
+    const additionalCharges = toNumber(
+      row.additionalCharges ?? row.additionalCharge ?? row.beginningBalance,
+      0,
+    );
+
+    const totalDue = toNumber(row.totalDue, currentCharges + additionalCharges);
+
+    const collection = toNumber(row.collection ?? row.paid ?? row.payment, 0);
+    const status = getHistoryStatus(row.status, collection);
+
+    const remainingBalance = toNumber(
+      row.remainingBalance,
+      status === "Paid" ? 0 : Math.max(totalDue - collection, 0),
+    );
+
+    return {
+      id: cleanString(row.id) || `history-${index}`,
+      monthKey: cleanString(row.monthKey) || `legacy-${index}`,
+      monthLabel:
+        cleanString(row.monthLabel) ||
+        cleanString(row.month) ||
+        cleanString(row.billingMonth) ||
+        `Month ${index + 1}`,
+      beginningBalance: toNumber(
+        row.beginningBalance ?? row.balance ?? row.previousBalance,
+        additionalCharges,
+      ),
+      currentCharges,
+      additionalCharges,
+      totalDue,
+      collection: status === "Paid" ? collection : 0,
+      remainingBalance,
+      status,
+      datePaid:
+        cleanString(row.datePaid) ||
+        cleanString(row.paymentDate) ||
+        (status === "Paid" ? "Paid" : "-"),
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  });
+};
+
+const getPreviousRemainingBalance = (
+  history: PaymentHistoryRecord[],
+  currentMonthKey: string,
+) => {
+  const previousRows = history
+    .filter((row) => row.monthKey && row.monthKey < currentMonthKey)
+    .sort((a, b) => compareMonthKey(a.monthKey, b.monthKey));
+
+  if (previousRows.length === 0) return 0;
+
+  return previousRows[previousRows.length - 1].remainingBalance;
+};
+
 export const updateResidentPaymentForMonth = async ({
   residentId,
   status,
   amount,
-  additionalCharges = 0,
 }: UpdateResidentPaymentParams) => {
+  const monthlyCharge = toNumber(amount, 300);
   const residentRef = doc(db, "users", residentId);
   const residentSnap = await getDoc(residentRef);
 
@@ -121,62 +220,66 @@ export const updateResidentPaymentForMonth = async ({
       ? residentData.payments
       : [];
 
-  const existingIndex = rawHistory.findIndex((item: unknown) => {
-    const row = item as Record<string, unknown>;
+  const normalizedHistory = normalizePaymentHistory(rawHistory, monthlyCharge);
 
-    return (
-      row.monthKey === monthKey ||
-      row.monthLabel === monthLabel ||
-      row.month === monthLabel ||
-      row.billingMonth === monthLabel
-    );
-  });
+  const previousBalance = getPreviousRemainingBalance(
+    normalizedHistory,
+    monthKey,
+  );
+
+  const existingIndex = normalizedHistory.findIndex(
+    (row) => row.monthKey === monthKey || row.monthLabel === monthLabel,
+  );
 
   const previousRecord =
-    existingIndex >= 0
-      ? (rawHistory[existingIndex] as Record<string, unknown>)
-      : {};
+    existingIndex >= 0 ? normalizedHistory[existingIndex] : undefined;
 
-  const updatedMonthRecord = {
-    ...previousRecord,
-    id:
-      typeof previousRecord.id === "string" && previousRecord.id.trim()
-        ? previousRecord.id
-        : `${residentId}-${monthKey}`,
+  const totalDue = monthlyCharge + previousBalance;
+  const collection = status === "Paid" ? totalDue : 0;
+  const remainingBalance = Math.max(totalDue - collection, 0);
+  const timestamp = Timestamp.now();
+
+  const updatedMonthRecord: PaymentHistoryRecord = {
+    id: previousRecord?.id?.trim() || `${residentId}-${monthKey}`,
     monthKey,
     monthLabel,
-    beginningBalance: toNumber(
-      previousRecord.beginningBalance ??
-        previousRecord.balance ??
-        previousRecord.previousBalance,
-      0,
-    ),
-    currentCharges: amount,
-    additionalCharges,
-    collection: status === "Paid" ? amount : 0,
+    beginningBalance: previousBalance,
+    currentCharges: monthlyCharge,
+    additionalCharges: previousBalance,
+    totalDue,
+    collection,
+    remainingBalance,
     status,
     datePaid: status === "Paid" ? shortDate : "-",
-    createdAt: previousRecord.createdAt ?? Timestamp.now(),
-    updatedAt: Timestamp.now(),
+    createdAt: previousRecord?.createdAt ?? timestamp,
+    updatedAt: timestamp,
   };
 
   const nextPaymentHistory =
     existingIndex >= 0
-      ? rawHistory.map((item: unknown, index: number) =>
+      ? normalizedHistory.map((item, index) =>
           index === existingIndex ? updatedMonthRecord : item,
         )
-      : [updatedMonthRecord, ...rawHistory];
+      : [updatedMonthRecord, ...normalizedHistory];
+
+  const sortedPaymentHistory = [...nextPaymentHistory].sort((a, b) =>
+    compareMonthKey(b.monthKey, a.monthKey),
+  );
 
   await updateDoc(residentRef, {
     paymentStatus: status,
     paymentDate: status === "Paid" ? shortDate : "",
-    paymentHistory: nextPaymentHistory,
+    paymentHistory: sortedPaymentHistory,
+    currentMonthDue: totalDue,
+    remainingBalance,
     updatedAt: serverTimestamp(),
   });
 
   return {
     paymentStatus: status,
     paymentDate: status === "Paid" ? shortDate : "-",
-    paymentHistory: nextPaymentHistory,
+    currentMonthDue: totalDue,
+    remainingBalance,
+    paymentHistory: sortedPaymentHistory,
   };
 };

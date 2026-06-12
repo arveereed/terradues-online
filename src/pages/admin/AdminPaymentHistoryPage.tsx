@@ -28,7 +28,9 @@ type PaymentHistoryRow = {
   beginningBalance: number;
   currentCharges: number;
   additionalCharges: number;
+  totalDue: number;
   collection: number;
+  remainingBalance: number;
   status: PaymentStatus;
   datePaid: string;
   createdAt?: unknown;
@@ -49,6 +51,7 @@ type ResidentPaymentRow = {
   lotNo: number;
   address?: string;
   amount: number;
+  monthlyCharge: number;
   date: string;
   status: PaymentStatus;
   history: PaymentHistoryRow[];
@@ -108,6 +111,21 @@ const getTodayShortDate = () => {
   const yy = String(now.getFullYear()).slice(-2);
 
   return `${mm}-${dd}-${yy}`;
+};
+
+const getCurrentMonthKey = () => {
+  const now = new Date();
+
+  const parts = new Intl.DateTimeFormat("en-PH", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(now);
+
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+
+  return `${year}-${month}`;
 };
 
 function formatShortDate(input: string) {
@@ -197,7 +215,7 @@ const getPaymentDate = (user: User) => {
 
   return typeof paymentDate === "string" && paymentDate.trim()
     ? paymentDate.trim()
-    : getTodayShortDate();
+    : "-";
 };
 
 const buildDefaultHistory = (): PaymentHistoryRow[] => [];
@@ -224,47 +242,92 @@ const getResidentHistory = (
     return buildDefaultHistory();
   }
 
-  return rawHistory.map((item, index) => {
-    const row = item as Record<string, unknown>;
+  return rawHistory
+    .map((item, index) => {
+      const row = item as Record<string, unknown>;
 
-    const collection = toNumber(row.collection ?? row.paid ?? row.payment, 0);
-    const rowStatus = getHistoryStatus(row.status, collection);
-
-    return {
-      id: clean(row.id) || `${user.id}-history-${index}`,
-      monthKey: clean(row.monthKey),
-      monthLabel:
-        clean(row.monthLabel) ||
-        clean(row.month) ||
-        clean(row.billingMonth) ||
-        getMonthLabel(index),
-      beginningBalance: toNumber(
-        row.beginningBalance ?? row.balance ?? row.previousBalance,
-        0,
-      ),
-      currentCharges: toNumber(
+      const currentCharges = toNumber(
         row.currentCharges ?? row.charges ?? row.amount,
         amount,
-      ),
-      additionalCharges: toNumber(
-        row.additionalCharges ?? row.additionalCharge ?? row.penalty,
+      );
+
+      const additionalCharges = toNumber(
+        row.additionalCharges ?? row.additionalCharge ?? row.beginningBalance,
         0,
-      ),
-      collection,
-      status: rowStatus,
-      datePaid:
-        clean(row.datePaid) ||
-        clean(row.paymentDate) ||
-        (rowStatus === "Paid" ? getPaymentDate(user) : "-"),
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-    };
-  });
+      );
+
+      const totalDue = toNumber(
+        row.totalDue,
+        currentCharges + additionalCharges,
+      );
+
+      const collection = toNumber(row.collection ?? row.paid ?? row.payment, 0);
+      const rowStatus = getHistoryStatus(row.status, collection);
+
+      const remainingBalance = toNumber(
+        row.remainingBalance,
+        rowStatus === "Paid" ? 0 : Math.max(totalDue - collection, 0),
+      );
+
+      return {
+        id: clean(row.id) || `${user.id}-history-${index}`,
+        monthKey: clean(row.monthKey),
+        monthLabel:
+          clean(row.monthLabel) ||
+          clean(row.month) ||
+          clean(row.billingMonth) ||
+          getMonthLabel(index),
+        beginningBalance: toNumber(
+          row.beginningBalance ?? row.balance ?? row.previousBalance,
+          additionalCharges,
+        ),
+        currentCharges,
+        additionalCharges,
+        totalDue,
+        collection: rowStatus === "Paid" ? collection : 0,
+        remainingBalance,
+        status: rowStatus,
+        datePaid:
+          clean(row.datePaid) ||
+          clean(row.paymentDate) ||
+          (rowStatus === "Paid" ? getPaymentDate(user) : "-"),
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      };
+    })
+    .sort((a, b) => (b.monthKey || "").localeCompare(a.monthKey || ""));
+};
+
+const getResidentCurrentDueFromHistory = (
+  history: PaymentHistoryRow[],
+  monthlyCharge: number,
+) => {
+  const currentMonthKey = getCurrentMonthKey();
+
+  const currentMonthRecord = history.find(
+    (row) => row.monthKey === currentMonthKey,
+  );
+
+  if (currentMonthRecord) {
+    return currentMonthRecord.totalDue;
+  }
+
+  const previousRows = history
+    .filter((row) => row.monthKey && row.monthKey < currentMonthKey)
+    .sort((a, b) => (a.monthKey || "").localeCompare(b.monthKey || ""));
+
+  const previousRemainingBalance =
+    previousRows.length > 0
+      ? previousRows[previousRows.length - 1].remainingBalance
+      : 0;
+
+  return monthlyCharge + previousRemainingBalance;
 };
 
 const toResidentPaymentRow = (user: ResidentUser): ResidentPaymentRow => {
-  const amount = getPaymentAmount(user);
+  const monthlyCharge = getPaymentAmount(user);
   const status = getStoredPaymentStatus(user);
+  const history = getResidentHistory(user, monthlyCharge, status);
 
   return {
     id: user.id,
@@ -279,10 +342,11 @@ const toResidentPaymentRow = (user: ResidentUser): ResidentPaymentRow => {
     lot: formatLocationPart(user.lot, "Lot"),
     lotNo: toLotNumber(user.lot),
     address: clean(user.address),
-    amount,
+    amount: getResidentCurrentDueFromHistory(history, monthlyCharge),
+    monthlyCharge,
     date: getPaymentDate(user),
     status,
-    history: getResidentHistory(user, amount, status),
+    history,
   };
 };
 
@@ -660,25 +724,9 @@ function ResidentPaymentSummaryView({
   const historyShowingEnd = Math.min(historyEndIndex, history.length);
 
   const totals = useMemo(() => {
-    const beginning = history.reduce(
-      (sum, row) =>
-        sum +
-        (Number.isFinite(row.beginningBalance) ? row.beginningBalance : 0),
-      0,
-    );
-
-    const charges = history.reduce(
-      (sum, row) =>
-        sum + (Number.isFinite(row.currentCharges) ? row.currentCharges : 0),
-      0,
-    );
-
-    const additional = history.reduce(
-      (sum, row) =>
-        sum +
-        (Number.isFinite(row.additionalCharges) ? row.additionalCharges : 0),
-      0,
-    );
+    const latestRecord = [...history].sort((a, b) =>
+      (b.monthKey || "").localeCompare(a.monthKey || ""),
+    )[0];
 
     const collection = history.reduce(
       (sum, row) =>
@@ -689,11 +737,16 @@ function ResidentPaymentSummaryView({
       0,
     );
 
-    return { beginning, charges, additional, collection };
-  }, [history]);
+    return {
+      remaining: latestRecord?.remainingBalance ?? 0,
+      currentCharge: latestRecord?.currentCharges ?? resident.monthlyCharge,
+      additional: latestRecord?.additionalCharges ?? 0,
+      collection,
+    };
+  }, [history, resident.monthlyCharge]);
 
-  const net =
-    totals.beginning + totals.charges + totals.additional - totals.collection;
+  const net = totals.remaining;
+
   const name = fullName(resident) || "Unnamed resident";
 
   return (
@@ -749,12 +802,12 @@ function ResidentPaymentSummaryView({
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           <StatCard
             label="Remaining Balance"
-            value={peso(totals.beginning)}
+            value={peso(totals.remaining)}
             tone="neutral"
           />
           <StatCard
             label="Current Charges"
-            value={peso(totals.charges)}
+            value={peso(totals.currentCharge)}
             tone="emerald"
           />
           <StatCard

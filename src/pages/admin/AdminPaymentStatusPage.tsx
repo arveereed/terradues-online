@@ -41,6 +41,7 @@ type PaymentRow = {
   picture?: string | null;
   residencyType: "Owner" | "Renter";
   amount: number;
+  monthlyCharge: number;
   date: string;
   status: PaymentStatus;
   phase: string;
@@ -71,6 +72,122 @@ const peso = (amount: number) =>
 
 const clean = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
+
+const toNumber = (value: unknown, fallback = 0) => {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : fallback;
+};
+
+type PaymentHistoryLike = {
+  monthKey?: string;
+  monthLabel?: string;
+  currentCharges?: number;
+  additionalCharges?: number;
+  totalDue?: number;
+  collection?: number;
+  remainingBalance?: number;
+  status?: PaymentStatus;
+};
+
+const getCurrentMonthKey = () => {
+  const now = new Date();
+
+  const parts = new Intl.DateTimeFormat("en-PH", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(now);
+
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+
+  return `${year}-${month}`;
+};
+
+const getHistoryStatus = (
+  value: unknown,
+  collection: number,
+): PaymentStatus => {
+  if (value === "Paid" || value === "Not Paid") return value;
+
+  return collection > 0 ? "Paid" : "Not Paid";
+};
+
+const getResidentCurrentDue = (user: ResidentUser, monthlyCharge: number) => {
+  const currentMonthKey = getCurrentMonthKey();
+
+  const rawHistory =
+    (user as { paymentHistory?: unknown }).paymentHistory ??
+    (user as { payments?: unknown }).payments;
+
+  if (!Array.isArray(rawHistory) || rawHistory.length === 0) {
+    return monthlyCharge;
+  }
+
+  const history = rawHistory
+    .map((item, index): PaymentHistoryLike & { sortKey: string } => {
+      const row = item as Record<string, unknown>;
+
+      const currentCharges = toNumber(
+        row.currentCharges ?? row.charges ?? row.amount,
+        monthlyCharge,
+      );
+
+      const additionalCharges = toNumber(
+        row.additionalCharges ?? row.additionalCharge ?? row.beginningBalance,
+        0,
+      );
+
+      const totalDue = toNumber(
+        row.totalDue,
+        currentCharges + additionalCharges,
+      );
+
+      const collection = toNumber(row.collection ?? row.paid ?? row.payment, 0);
+      const status = getHistoryStatus(row.status, collection);
+
+      return {
+        monthKey: clean(row.monthKey),
+        monthLabel: clean(row.monthLabel),
+        currentCharges,
+        additionalCharges,
+        totalDue,
+        collection: status === "Paid" ? collection : 0,
+        remainingBalance: toNumber(
+          row.remainingBalance,
+          status === "Paid" ? 0 : Math.max(totalDue - collection, 0),
+        ),
+        status,
+        sortKey: clean(row.monthKey) || `legacy-${index}`,
+      };
+    })
+    .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+
+  const currentMonthRecord = history.find(
+    (row) => row.monthKey === currentMonthKey,
+  );
+
+  if (currentMonthRecord) {
+    return toNumber(
+      currentMonthRecord.totalDue,
+      monthlyCharge + toNumber(currentMonthRecord.additionalCharges, 0),
+    );
+  }
+
+  const previousRecords = history.filter(
+    (row) => row.monthKey && row.monthKey < currentMonthKey,
+  );
+
+  const previousRemainingBalance =
+    previousRecords.length > 0
+      ? toNumber(
+          previousRecords[previousRecords.length - 1].remainingBalance,
+          0,
+        )
+      : 0;
+
+  return monthlyCharge + previousRemainingBalance;
+};
 
 const formatLocationPart = (
   value: unknown,
@@ -181,6 +298,7 @@ const getPaymentDate = (user: User) => {
 
 const toPaymentRow = (user: ResidentUser): PaymentRow => {
   const status = getStoredPaymentStatus(user);
+  const monthlyCharge = getPaymentAmount(user);
 
   return {
     id: user.id,
@@ -191,7 +309,8 @@ const toPaymentRow = (user: ResidentUser): PaymentRow => {
     contactNumber: clean(user.contactNumber),
     picture: user.picture,
     residencyType: user.userType,
-    amount: getPaymentAmount(user),
+    amount: getResidentCurrentDue(user, monthlyCharge),
+    monthlyCharge,
     date: status === "Paid" ? getPaymentDate(user) : "-",
     status,
     phase: formatLocationPart(user.phase, "Phase"),
@@ -351,6 +470,7 @@ export default function AdminPaymentStatusPage() {
 
     const previousStatus = statusById[id] ?? row.status;
     const previousDate = row.date;
+    const previousAmount = row.amount;
     const nextDate = next === "Paid" ? getTodayShortDate() : "-";
 
     setDbError(null);
@@ -374,8 +494,7 @@ export default function AdminPaymentStatusPage() {
       const result = await updateResidentPaymentForMonth({
         residentId: id,
         status: next,
-        amount: row.amount,
-        additionalCharges: 0,
+        amount: row.monthlyCharge,
       });
 
       setStatusById((prev) => ({
@@ -388,6 +507,7 @@ export default function AdminPaymentStatusPage() {
           item.id === id
             ? {
                 ...item,
+                amount: result.currentMonthDue,
                 status: result.paymentStatus,
                 date: result.paymentDate || "-",
               }
@@ -404,6 +524,7 @@ export default function AdminPaymentStatusPage() {
           item.id === id
             ? {
                 ...item,
+                amount: previousAmount,
                 status: previousStatus,
                 date: previousDate,
               }

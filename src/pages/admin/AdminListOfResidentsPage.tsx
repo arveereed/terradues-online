@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ChevronLeft,
   ChevronRight,
+  Eye,
   FileText,
+  Image as ImageIcon,
   Mail,
   MapPin,
   Phone,
@@ -39,6 +41,14 @@ type ResidentSourceUser = User & {
   occupancyType?: unknown;
 };
 
+type FilePreviewType = "image" | "pdf" | "unsupported";
+
+type FilePreviewState = {
+  type: FilePreviewType;
+  title: string;
+  url: string;
+};
+
 const ROWS_PER_PAGE = 5;
 const ALL_FILTER = "All";
 const GENDER_OPTIONS = [ALL_FILTER, "Male", "Female"];
@@ -73,6 +83,36 @@ const getInitials = (resident: Resident) => {
   const first = resident.firstName.charAt(0);
   const last = resident.lastName.charAt(0);
   return `${first}${last}`.toUpperCase() || "R";
+};
+
+const getPreviewableUrl = (url: string) => {
+  const trimmed = url.trim();
+
+  if (!trimmed) return "";
+
+  return trimmed;
+};
+
+const isImageUrl = (url: string) => {
+  const cleanUrl = url.split("?")[0].toLowerCase();
+
+  return (
+    /\.(jpg|jpeg|png|webp|gif)$/i.test(cleanUrl) ||
+    cleanUrl.includes("/image/upload/")
+  );
+};
+
+const isPdfUrl = (url: string) => {
+  const cleanUrl = url.split("?")[0].toLowerCase();
+
+  return cleanUrl.endsWith(".pdf") || cleanUrl.includes(".pdf");
+};
+
+const getFilePreviewType = (url: string): FilePreviewType => {
+  if (isImageUrl(url)) return "image";
+  if (isPdfUrl(url)) return "pdf";
+
+  return "unsupported";
 };
 
 const getOccupancyType = (user: ResidentSourceUser) => {
@@ -124,6 +164,7 @@ export default function AdminListOfResidentsPage() {
   const [selectedResident, setSelectedResident] = useState<Resident | null>(
     null,
   );
+  const [filePreview, setFilePreview] = useState<FilePreviewState | null>(null);
   const [loading, setLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
 
@@ -155,17 +196,22 @@ export default function AdminListOfResidentsPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedResident) return;
+    if (!selectedResident && !filePreview) return;
 
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setSelectedResident(null);
+      if (event.key !== "Escape") return;
+
+      if (filePreview) {
+        setFilePreview(null);
+        return;
       }
+
+      setSelectedResident(null);
     };
 
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
-  }, [selectedResident]);
+  }, [selectedResident, filePreview]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -215,6 +261,44 @@ export default function AdminListOfResidentsPage() {
 
   const clearFilters = () => {
     setSelectedGender(ALL_FILTER);
+  };
+
+  const openValidIdPreview = (resident: Resident) => {
+    const url = getPreviewableUrl(resident.picture ?? "");
+
+    if (!url) {
+      setFilePreview({
+        type: "unsupported",
+        title: "No valid ID uploaded",
+        url: "",
+      });
+      return;
+    }
+
+    setFilePreview({
+      type: "image",
+      title: `${getResidentName(resident) || "Resident"} - Valid ID`,
+      url,
+    });
+  };
+
+  const openDocumentPreview = (resident: Resident) => {
+    const url = getPreviewableUrl(resident.document ?? "");
+
+    if (!url) {
+      setFilePreview({
+        type: "unsupported",
+        title: "No document uploaded",
+        url: "",
+      });
+      return;
+    }
+
+    setFilePreview({
+      type: getFilePreviewType(url),
+      title: `${getResidentName(resident) || "Resident"} - Document`,
+      url,
+    });
   };
 
   return (
@@ -403,6 +487,15 @@ export default function AdminListOfResidentsPage() {
         <ResidentDetailsModal
           resident={selectedResident}
           onClose={() => setSelectedResident(null)}
+          onViewValidId={() => openValidIdPreview(selectedResident)}
+          onViewDocument={() => openDocumentPreview(selectedResident)}
+        />
+      )}
+
+      {filePreview && (
+        <FilePreviewModal
+          preview={filePreview}
+          onClose={() => setFilePreview(null)}
         />
       )}
     </div>
@@ -512,9 +605,13 @@ function Pagination({
 function ResidentDetailsModal({
   resident,
   onClose,
+  onViewValidId,
+  onViewDocument,
 }: {
   resident: Resident;
   onClose: () => void;
+  onViewValidId: () => void;
+  onViewDocument: () => void;
 }) {
   const name = getResidentName(resident) || "Unnamed resident";
   const location = getResidentLocation(resident);
@@ -636,18 +733,133 @@ function ResidentDetailsModal({
               Close
             </button>
 
-            {resident.document ? (
-              <a
-                href={resident.document}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-5 text-sm font-semibold text-white transition hover:bg-black"
-              >
-                <FileText size={17} />
-                View Document
-              </a>
-            ) : null}
+            <button
+              type="button"
+              onClick={onViewValidId}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+            >
+              <ImageIcon size={17} />
+              {resident.picture ? "View Valid ID" : "No Valid ID Uploaded"}
+            </button>
+
+            <button
+              type="button"
+              onClick={onViewDocument}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-5 text-sm font-semibold text-white transition hover:bg-black"
+            >
+              <FileText size={17} />
+              {resident.document ? "View Document" : "No Document Uploaded"}
+            </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FilePreviewModal({
+  preview,
+  onClose,
+}: {
+  preview: FilePreviewState;
+  onClose: () => void;
+}) {
+  const hasFile = Boolean(preview.url);
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-zinc-200 bg-white p-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
+              File Preview
+            </p>
+
+            <h2 className="mt-1 text-lg font-semibold text-zinc-950">
+              {preview.title}
+            </h2>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid size-10 place-items-center rounded-xl bg-zinc-100 text-zinc-600 transition hover:bg-zinc-200"
+            aria-label="Close file preview"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="min-h-[360px] flex-1 overflow-auto bg-zinc-50 p-5">
+          {!hasFile ? (
+            <div className="flex min-h-[320px] flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-white p-8 text-center">
+              <FileText size={40} className="text-zinc-400" />
+
+              <p className="mt-4 text-base font-semibold text-zinc-900">
+                {preview.title}
+              </p>
+
+              <p className="mt-1 text-sm font-medium text-zinc-500">
+                There is no uploaded file for this resident.
+              </p>
+            </div>
+          ) : preview.type === "image" ? (
+            <div className="flex justify-center rounded-2xl border border-zinc-200 bg-white p-4">
+              <img
+                src={preview.url}
+                alt={preview.title}
+                className="max-h-[70vh] w-auto max-w-full rounded-xl object-contain"
+              />
+            </div>
+          ) : preview.type === "pdf" ? (
+            <div className="h-[70vh] overflow-hidden rounded-2xl border border-zinc-200 bg-white">
+              <iframe
+                src={preview.url}
+                title={preview.title}
+                className="h-full w-full"
+              />
+            </div>
+          ) : (
+            <div className="flex min-h-[320px] flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-white p-8 text-center">
+              <FileText size={40} className="text-zinc-400" />
+
+              <p className="mt-4 text-base font-semibold text-zinc-900">
+                Preview is not available for this document type.
+              </p>
+
+              <p className="mt-1 max-w-md text-sm font-medium text-zinc-500">
+                This file may be a DOC or DOCX document. Browser preview is not
+                supported for this type.
+              </p>
+
+              <a
+                href={preview.url}
+                download
+                className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-5 text-sm font-semibold text-white transition hover:bg-black"
+              >
+                <Eye size={17} />
+                Download File
+              </a>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end border-t border-zinc-200 bg-white p-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-11 items-center justify-center rounded-xl bg-zinc-100 px-5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-200"
+          >
+            Close Preview
+          </button>
         </div>
       </div>
     </div>
