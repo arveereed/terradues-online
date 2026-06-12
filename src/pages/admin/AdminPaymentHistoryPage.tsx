@@ -23,10 +23,16 @@ type ResidentUser = User & {
 
 type PaymentHistoryRow = {
   id: string;
+  monthKey?: string;
   monthLabel: string;
   beginningBalance: number;
   currentCharges: number;
+  additionalCharges: number;
   collection: number;
+  status: PaymentStatus;
+  datePaid: string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
 };
 
 type ResidentPaymentRow = {
@@ -194,23 +200,16 @@ const getPaymentDate = (user: User) => {
     : getTodayShortDate();
 };
 
-const buildDefaultHistory = (
-  amount: number,
-  status: PaymentStatus,
-): PaymentHistoryRow[] =>
-  Array.from({ length: 9 }).map((_, index) => {
-    const isCurrentMonth = index === 0;
-    const collection =
-      status === "Paid" && isCurrentMonth ? amount : index > 0 ? amount : 0;
+const buildDefaultHistory = (): PaymentHistoryRow[] => [];
 
-    return {
-      id: `default-history-${index}`,
-      monthLabel: getMonthLabel(index),
-      beginningBalance: 0,
-      currentCharges: amount,
-      collection,
-    };
-  });
+const getHistoryStatus = (
+  value: unknown,
+  collection: number,
+): PaymentStatus => {
+  if (value === "Paid" || value === "Not Paid") return value;
+
+  return collection > 0 ? "Paid" : "Not Paid";
+};
 
 const getResidentHistory = (
   user: ResidentUser,
@@ -222,14 +221,18 @@ const getResidentHistory = (
     (user as { payments?: unknown }).payments;
 
   if (!Array.isArray(rawHistory) || rawHistory.length === 0) {
-    return buildDefaultHistory(amount, status);
+    return buildDefaultHistory();
   }
 
   return rawHistory.map((item, index) => {
     const row = item as Record<string, unknown>;
 
+    const collection = toNumber(row.collection ?? row.paid ?? row.payment, 0);
+    const rowStatus = getHistoryStatus(row.status, collection);
+
     return {
       id: clean(row.id) || `${user.id}-history-${index}`,
+      monthKey: clean(row.monthKey),
       monthLabel:
         clean(row.monthLabel) ||
         clean(row.month) ||
@@ -243,7 +246,18 @@ const getResidentHistory = (
         row.currentCharges ?? row.charges ?? row.amount,
         amount,
       ),
-      collection: toNumber(row.collection ?? row.paid ?? row.payment, 0),
+      additionalCharges: toNumber(
+        row.additionalCharges ?? row.additionalCharge ?? row.penalty,
+        0,
+      ),
+      collection,
+      status: rowStatus,
+      datePaid:
+        clean(row.datePaid) ||
+        clean(row.paymentDate) ||
+        (rowStatus === "Paid" ? getPaymentDate(user) : "-"),
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
     };
   });
 };
@@ -416,7 +430,7 @@ export default function AdminPaymentHistoryPage() {
           </p>
 
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-zinc-950 sm:text-3xl">
-            Payment Summary
+            Payment History
           </h1>
 
           <p className="mt-1 text-sm font-medium text-zinc-500">
@@ -659,16 +673,27 @@ function ResidentPaymentSummaryView({
       0,
     );
 
-    const collection = history.reduce(
+    const additional = history.reduce(
       (sum, row) =>
-        sum + (Number.isFinite(row.collection) ? row.collection : 0),
+        sum +
+        (Number.isFinite(row.additionalCharges) ? row.additionalCharges : 0),
       0,
     );
 
-    return { beginning, charges, collection };
+    const collection = history.reduce(
+      (sum, row) =>
+        sum +
+        (row.status === "Paid" && Number.isFinite(row.collection)
+          ? row.collection
+          : 0),
+      0,
+    );
+
+    return { beginning, charges, additional, collection };
   }, [history]);
 
-  const net = totals.beginning + totals.charges - totals.collection;
+  const net =
+    totals.beginning + totals.charges + totals.additional - totals.collection;
   const name = fullName(resident) || "Unnamed resident";
 
   return (
@@ -768,90 +793,48 @@ function ResidentPaymentSummaryView({
                 <thead className="bg-zinc-50">
                   <tr>
                     <TableHead>Month</TableHead>
+                    <TableHead className="text-right">Current Charge</TableHead>
                     <TableHead className="text-right">
-                      Beginning Balance
+                      Additional Charge
                     </TableHead>
-                    <TableHead className="text-right">
-                      Current Charges
-                    </TableHead>
-                    <TableHead className="text-right">Collection</TableHead>
-                    <TableHead className="text-right">Net</TableHead>
+                    <TableHead className="text-right">Status</TableHead>
+                    <TableHead className="text-right">Date Paid</TableHead>
                   </tr>
                 </thead>
 
                 <tbody className="divide-y divide-zinc-100 bg-white">
-                  {paginatedHistory.map((row) => {
-                    const rowNet =
-                      row.beginningBalance +
-                      row.currentCharges -
-                      row.collection;
+                  {paginatedHistory.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="transition hover:bg-emerald-50/40"
+                    >
+                      <td className="whitespace-nowrap px-5 py-4">
+                        <p className="text-sm font-semibold text-zinc-900">
+                          {row.monthLabel}
+                        </p>
+                        <p className="mt-0.5 text-xs font-medium text-zinc-500">
+                          {resident.phase} • {resident.block} • {resident.lot}
+                        </p>
+                      </td>
 
-                    return (
-                      <tr
-                        key={row.id}
-                        className="transition hover:bg-emerald-50/40"
-                      >
-                        <td className="whitespace-nowrap px-5 py-4">
-                          <p className="text-sm font-semibold text-zinc-900">
-                            {row.monthLabel}
-                          </p>
-                          <p className="mt-0.5 text-xs font-medium text-zinc-500">
-                            {resident.phase} • {resident.block} • {resident.lot}
-                          </p>
-                        </td>
+                      <td className="whitespace-nowrap px-5 py-4 text-right text-sm font-semibold text-zinc-800">
+                        {peso(row.currentCharges)}
+                      </td>
 
-                        <td className="whitespace-nowrap px-5 py-4 text-right text-sm font-semibold text-zinc-800">
-                          {peso(row.beginningBalance)}
-                        </td>
+                      <td className="whitespace-nowrap px-5 py-4 text-right text-sm font-semibold text-zinc-800">
+                        {peso(row.additionalCharges)}
+                      </td>
 
-                        <td className="whitespace-nowrap px-5 py-4 text-right text-sm font-semibold text-zinc-800">
-                          {peso(row.currentCharges)}
-                        </td>
+                      <td className="whitespace-nowrap px-5 py-4 text-right text-sm font-semibold text-zinc-800">
+                        <StatusBadge status={row.status} />
+                      </td>
 
-                        <td className="whitespace-nowrap px-5 py-4 text-right text-sm font-semibold text-zinc-800">
-                          {peso(row.collection)}
-                        </td>
-
-                        <td className="whitespace-nowrap px-5 py-4 text-right">
-                          <span
-                            className={cx(
-                              "inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ring-1",
-                              rowNet <= 0
-                                ? "bg-emerald-50 text-emerald-900 ring-emerald-100"
-                                : "bg-rose-50 text-rose-900 ring-rose-100",
-                            )}
-                          >
-                            {peso(rowNet)}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                      <td className="whitespace-nowrap px-5 py-4 text-right text-sm font-semibold text-zinc-800">
+                        {row.datePaid}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
-
-                <tfoot className="bg-white">
-                  <tr className="border-t border-zinc-200">
-                    <td className="px-5 py-4 text-sm font-bold text-zinc-900">
-                      Total
-                    </td>
-
-                    <td className="px-5 py-4 text-right text-sm font-bold text-zinc-900">
-                      {peso(totals.beginning)}
-                    </td>
-
-                    <td className="px-5 py-4 text-right text-sm font-bold text-zinc-900">
-                      {peso(totals.charges)}
-                    </td>
-
-                    <td className="px-5 py-4 text-right text-sm font-bold text-zinc-900">
-                      {peso(totals.collection)}
-                    </td>
-
-                    <td className="px-5 py-4 text-right text-sm font-bold text-zinc-900">
-                      {peso(net)}
-                    </td>
-                  </tr>
-                </tfoot>
               </table>
             </div>
 

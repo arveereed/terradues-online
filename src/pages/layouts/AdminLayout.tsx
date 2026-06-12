@@ -305,7 +305,7 @@ export default function AdminLayout() {
         {/* Main Content */}
         <main className="w-full">
           {/* Desktop header */}
-          <div className="hidden lg:block">
+          {/* <div className="hidden lg:block">
             <div className="sticky top-6 z-30 mb-6 rounded-3xl bg-white/80 p-5 backdrop-blur shadow-sm ring-1 ring-zinc-200">
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
@@ -328,7 +328,7 @@ export default function AdminLayout() {
                 </div>
               </div>
             </div>
-          </div>
+          </div> */}
 
           {/* Page body */}
           <Outlet />

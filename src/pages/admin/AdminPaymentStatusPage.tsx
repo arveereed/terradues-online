@@ -17,7 +17,10 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import AppInput from "../../components/AppInput";
-import { getAllUsers } from "../../features/auth/services/auth.service";
+import {
+  getAllUsers,
+  updateResidentPaymentForMonth,
+} from "../../features/auth/services/auth.service";
 import type { User } from "../../types";
 
 type PaymentStatus = "Paid" | "Not Paid";
@@ -173,26 +176,30 @@ const getPaymentDate = (user: User) => {
 
   return typeof paymentDate === "string" && paymentDate.trim()
     ? paymentDate.trim()
-    : getTodayShortDate();
+    : "-";
 };
 
-const toPaymentRow = (user: ResidentUser): PaymentRow => ({
-  id: user.id,
-  lotNo: toLotNumber(user.lot),
-  firstName: clean(user.firstName),
-  middleName: clean(user.middleName),
-  lastName: clean(user.lastName),
-  contactNumber: clean(user.contactNumber),
-  picture: user.picture,
-  residencyType: user.userType,
-  amount: getPaymentAmount(user),
-  date: getPaymentDate(user),
-  status: getStoredPaymentStatus(user),
-  phase: formatLocationPart(user.phase, "Phase"),
-  block: formatLocationPart(user.block, "Block"),
-  lot: formatLocationPart(user.lot, "Lot"),
-  address: clean(user.address),
-});
+const toPaymentRow = (user: ResidentUser): PaymentRow => {
+  const status = getStoredPaymentStatus(user);
+
+  return {
+    id: user.id,
+    lotNo: toLotNumber(user.lot),
+    firstName: clean(user.firstName),
+    middleName: clean(user.middleName),
+    lastName: clean(user.lastName),
+    contactNumber: clean(user.contactNumber),
+    picture: user.picture,
+    residencyType: user.userType,
+    amount: getPaymentAmount(user),
+    date: status === "Paid" ? getPaymentDate(user) : "-",
+    status,
+    phase: formatLocationPart(user.phase, "Phase"),
+    block: formatLocationPart(user.block, "Block"),
+    lot: formatLocationPart(user.lot, "Lot"),
+    address: clean(user.address),
+  };
+};
 
 export default function AdminPaymentStatusPage() {
   const [rows, setRows] = useState<PaymentRow[]>([]);
@@ -210,6 +217,7 @@ export default function AdminPaymentStatusPage() {
   const [statusById, setStatusById] = useState<Record<string, PaymentStatus>>(
     {},
   );
+  const [savingById, setSavingById] = useState<Record<string, boolean>>({});
 
   const loadResidents = async () => {
     setLoading(true);
@@ -336,8 +344,81 @@ export default function AdminPaymentStatusPage() {
     setSelectedResidency(ALL_FILTER);
   };
 
-  const updateStatus = (id: string, next: PaymentStatus) => {
+  const updateStatus = async (id: string, next: PaymentStatus) => {
+    const row = rows.find((item) => item.id === id);
+
+    if (!row) return;
+
+    const previousStatus = statusById[id] ?? row.status;
+    const previousDate = row.date;
+    const nextDate = next === "Paid" ? getTodayShortDate() : "-";
+
+    setDbError(null);
+    setSavingById((prev) => ({ ...prev, [id]: true }));
+
     setStatusById((prev) => ({ ...prev, [id]: next }));
+
+    setRows((prevRows) =>
+      prevRows.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              status: next,
+              date: nextDate,
+            }
+          : item,
+      ),
+    );
+
+    try {
+      const result = await updateResidentPaymentForMonth({
+        residentId: id,
+        status: next,
+        amount: row.amount,
+        additionalCharges: 0,
+      });
+
+      setStatusById((prev) => ({
+        ...prev,
+        [id]: result.paymentStatus,
+      }));
+
+      setRows((prevRows) =>
+        prevRows.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                status: result.paymentStatus,
+                date: result.paymentDate || "-",
+              }
+            : item,
+        ),
+      );
+    } catch (error) {
+      console.error("updateResidentPaymentForMonth failed:", error);
+
+      setStatusById((prev) => ({ ...prev, [id]: previousStatus }));
+
+      setRows((prevRows) =>
+        prevRows.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                status: previousStatus,
+                date: previousDate,
+              }
+            : item,
+        ),
+      );
+
+      setDbError(
+        error instanceof Error
+          ? error.message
+          : "Failed to update payment status.",
+      );
+    } finally {
+      setSavingById((prev) => ({ ...prev, [id]: false }));
+    }
   };
 
   return (
@@ -516,7 +597,8 @@ export default function AdminPaymentStatusPage() {
                         <td className="whitespace-nowrap px-5 py-4">
                           <StatusSelectModern
                             value={status}
-                            onChange={(next) => updateStatus(row.id, next)}
+                            disabled={savingById[row.id] ?? false}
+                            onChange={(next) => void updateStatus(row.id, next)}
                           />
                         </td>
                       </tr>
@@ -648,19 +730,21 @@ function Pagination({
 
 function StatusSelectModern({
   value,
+  disabled = false,
   onChange,
 }: {
   value: PaymentStatus;
+  disabled?: boolean;
   onChange: (value: PaymentStatus) => void;
 }) {
   const paid = value === "Paid";
 
   return (
     <div className="relative w-[160px]">
-      <Listbox value={value} onChange={onChange}>
+      <Listbox value={value} onChange={onChange} disabled={disabled}>
         <ListboxButton
           className={cx(
-            "flex h-10 w-full cursor-pointer items-center justify-between rounded-xl px-3 text-xs font-semibold ring-1 shadow-sm outline-none transition",
+            "flex h-10 w-full cursor-pointer items-center justify-between rounded-xl px-3 text-xs font-semibold ring-1 shadow-sm outline-none transition disabled:cursor-not-allowed disabled:opacity-60",
             paid
               ? "bg-emerald-50 text-emerald-800 ring-emerald-100 focus:ring-2 focus:ring-emerald-300"
               : "bg-rose-50 text-rose-800 ring-rose-100 focus:ring-2 focus:ring-rose-300",
