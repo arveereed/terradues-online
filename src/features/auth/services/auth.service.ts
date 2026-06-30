@@ -283,3 +283,53 @@ export const updateResidentPaymentForMonth = async ({
     paymentHistory: sortedPaymentHistory,
   };
 };
+
+export type UpdateUserProfilePayload = {
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  contactNumber: string;
+  gender: string;
+};
+
+export const updateUserProfile = async (
+  docId: string,
+  payload: UpdateUserProfilePayload,
+) => {
+  const userRef = doc(db, "users", docId);
+
+  const fullName = [payload.firstName, payload.middleName, payload.lastName]
+    .filter(Boolean)
+    .join(" ");
+
+  await updateDoc(userRef, {
+    ...payload,
+    fullName,
+    updatedAt: serverTimestamp(),
+  });
+
+  return {
+    ...payload,
+    fullName,
+  };
+};
+
+export type ReportProblemPayload = {
+  userId: string;
+  name: string;
+  email: string;
+  category: string;
+  message: string;
+};
+
+export const createProblemReport = async (payload: ReportProblemPayload) => {
+  const reportsCollection = collection(db, "reports");
+
+  const docRef = await addDoc(reportsCollection, {
+    ...payload,
+    status: "Open",
+    createdAt: serverTimestamp(),
+  });
+
+  return docRef.id;
+};
