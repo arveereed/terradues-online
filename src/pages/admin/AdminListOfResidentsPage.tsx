@@ -77,7 +77,9 @@ const getResidentLocation = (resident: Resident) =>
   [resident.phase, resident.block, resident.lot].filter(Boolean).join(" / ");
 
 const getResidentAddress = (resident: Resident) =>
-  resident.address || getResidentLocation(resident) || "-";
+  `${resident.block} ${resident.lot} ${resident.phase}` ||
+  getResidentLocation(resident) ||
+  "-";
 
 const getInitials = (resident: Resident) => {
   const first = resident.firstName.charAt(0);

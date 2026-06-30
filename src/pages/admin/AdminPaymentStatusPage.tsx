@@ -243,7 +243,7 @@ function fullName(row: PaymentRow) {
 
 function getPaymentAddress(row: PaymentRow) {
   return (
-    row.address ||
+    `${row.block} ${row.lot} ${row.phase}` ||
     [row.phase, row.block, row.lot].filter(Boolean).join(" / ") ||
     "-"
   );

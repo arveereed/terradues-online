@@ -18,7 +18,6 @@ export default function PersonalDetailsSection() {
     lastName: "",
     contactNumber: "",
     gender: "",
-    address: "",
     phase: "",
     block: "",
     lot: "",
@@ -35,7 +34,6 @@ export default function PersonalDetailsSection() {
       lastName: user.lastName || "",
       contactNumber: user.contactNumber || "",
       gender: user.gender || "",
-      address: user.address || "",
       phase: user.phase || "",
       block: user.block || "",
       lot: user.lot || "",
@@ -133,13 +131,6 @@ export default function PersonalDetailsSection() {
               placeholder="Gender"
               value={form.gender}
               onChange={(e) => handleChange("gender", e.target.value)}
-            />
-
-            <AppInput
-              label="Address"
-              placeholder="Address"
-              value={form.address}
-              onChange={(e) => handleChange("address", e.target.value)}
             />
 
             <AppInput

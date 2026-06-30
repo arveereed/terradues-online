@@ -354,7 +354,10 @@ export default function PaymentHistory({}: Props) {
           {loading ? "Loading..." : user?.fullName || "Resident"}
         </p>
         <p className="mt-1 text-xs text-emerald-50/80">
-          {loading ? "Loading address..." : user?.address || "No address found"}
+          {loading
+            ? "Loading address..."
+            : `Blk ${user?.block} Lot ${user?.lot} Phase ${user?.phase}` ||
+              "No address found"}
         </p>
       </section>
 

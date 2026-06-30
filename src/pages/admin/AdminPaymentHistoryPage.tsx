@@ -156,7 +156,7 @@ function fullName(
 
 function getResidentAddress(row: ResidentPaymentRow) {
   return (
-    row.address ||
+    `${row.block} ${row.lot} ${row.phase}` ||
     [row.phase, row.block, row.lot].filter(Boolean).join(" / ") ||
     "-"
   );
