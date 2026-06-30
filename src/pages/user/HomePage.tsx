@@ -1,4 +1,4 @@
-import { ShieldCheck, Trash2, Users, Lightbulb, Leaf } from "lucide-react";
+import { ShieldCheck, Trash2, Lightbulb, Leaf } from "lucide-react";
 import bg from "../../assets/homebg.jpg";
 import { useFirestoreUser } from "../../features/auth/hooks/useFirestoreUser";
 import { useUser } from "@clerk/clerk-react";

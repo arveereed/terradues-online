@@ -104,15 +104,6 @@ const toLotNumber = (value: unknown) => {
   return Number.isFinite(numeric) ? numeric : 0;
 };
 
-const getTodayShortDate = () => {
-  const now = new Date();
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const dd = String(now.getDate()).padStart(2, "0");
-  const yy = String(now.getFullYear()).slice(-2);
-
-  return `${mm}-${dd}-${yy}`;
-};
-
 const getCurrentMonthKey = () => {
   const now = new Date();
 
@@ -232,7 +223,6 @@ const getHistoryStatus = (
 const getResidentHistory = (
   user: ResidentUser,
   amount: number,
-  status: PaymentStatus,
 ): PaymentHistoryRow[] => {
   const rawHistory =
     (user as { paymentHistory?: unknown }).paymentHistory ??
@@ -327,7 +317,7 @@ const getResidentCurrentDueFromHistory = (
 const toResidentPaymentRow = (user: ResidentUser): ResidentPaymentRow => {
   const monthlyCharge = getPaymentAmount(user);
   const status = getStoredPaymentStatus(user);
-  const history = getResidentHistory(user, monthlyCharge, status);
+  const history = getResidentHistory(user, monthlyCharge);
 
   return {
     id: user.id,

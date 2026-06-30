@@ -62,21 +62,6 @@ export default function AdminLayout() {
     return location.pathname.startsWith(to);
   };
 
-  const pageTitle = useMemo(() => {
-    const hit = navItems
-      .slice()
-      .sort((a, b) => b.to.length - a.to.length)
-      .find((x) => isActive(x.to));
-    return hit?.label ?? "Admin";
-  }, [location.pathname]);
-
-  const initials = useMemo(() => {
-    const parts = userName.split(" ").filter(Boolean);
-    const a = parts[0]?.[0] ?? "A";
-    const b = parts[1]?.[0] ?? "D";
-    return (a + b).toUpperCase();
-  }, [userName]);
-
   return (
     <div className="min-h-screen bg-zinc-50">
       {/* subtle top glow */}
