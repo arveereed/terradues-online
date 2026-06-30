@@ -1,5 +1,5 @@
 import { useUser } from "@clerk/clerk-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useFirestoreUser } from "../../features/auth/hooks/useFirestoreUser";
 
 type PaymentStatus = "Paid" | "Unpaid";
@@ -8,20 +8,29 @@ type PaymentItem = {
   dateLabel: string;
   status: PaymentStatus;
   amount: number;
+  sortDate: number;
+};
+
+type FirestorePaymentRow = {
+  dateLabel?: string;
+  datePaid?: string;
+  paymentDate?: string;
+  dueDate?: string;
+  monthLabel?: string;
+  month?: string;
+  monthKey?: string;
+  status?: string;
+  amount?: number | string;
+  collection?: number | string;
+  paid?: number | string;
+  payment?: number | string;
+  createdAt?: unknown;
+  updatedAt?: unknown;
 };
 
 type Props = {
-  totalMonthlyDuePaid?: number;
-  unpaidBalance?: number;
-
-  upcomingPaymentDate?: string;
-  lastPaymentDate?: string;
-
-  history?: PaymentItem[];
-
   isLoggingOut?: boolean;
   onLogout?: () => void;
-
   onOpenItem?: (item: PaymentItem) => void;
 };
 
@@ -40,7 +49,111 @@ const peso = (n: number) =>
     .format(n)
     .replace(".00", "");
 
-/** ✅ Modern pagination helper: returns [1, 2, "...", 8, 9] style array */
+const toNumber = (value: unknown, fallback = 0) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+const clean = (value: unknown) =>
+  typeof value === "string" ? value.trim() : "";
+
+const toMillis = (value: unknown) => {
+  if (!value) return 0;
+
+  if (typeof value === "object" && "toMillis" in value) {
+    const maybeTimestamp = value as { toMillis?: () => number };
+    return typeof maybeTimestamp.toMillis === "function"
+      ? maybeTimestamp.toMillis()
+      : 0;
+  }
+
+  if (typeof value === "object" && "seconds" in value) {
+    const maybeTimestamp = value as { seconds?: number };
+    return typeof maybeTimestamp.seconds === "number"
+      ? maybeTimestamp.seconds * 1000
+      : 0;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
+  return 0;
+};
+
+const formatDateLabel = (value: unknown) => {
+  const millis = toMillis(value);
+
+  if (!millis) return "";
+
+  return new Intl.DateTimeFormat("en-PH", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+    weekday: "short",
+  }).format(new Date(millis));
+};
+
+const normalizeStatus = (value: unknown, amount: number): PaymentStatus => {
+  const status = clean(value).toLowerCase();
+
+  if (status === "paid") return "Paid";
+  if (status === "unpaid" || status === "not paid") return "Unpaid";
+
+  return amount > 0 ? "Paid" : "Unpaid";
+};
+
+const getPaymentHistoryFromUser = (user: unknown): PaymentItem[] => {
+  const data = user as {
+    paymentHistory?: FirestorePaymentRow[];
+    payments?: FirestorePaymentRow[];
+  };
+
+  const rawHistory = Array.isArray(data?.paymentHistory)
+    ? data.paymentHistory
+    : Array.isArray(data?.payments)
+      ? data.payments
+      : [];
+
+  return rawHistory
+    .map((item) => {
+      const amount = toNumber(
+        item.amount ?? item.collection ?? item.paid ?? item.payment,
+        0,
+      );
+
+      const status = normalizeStatus(item.status, amount);
+
+      const dateLabel =
+        clean(item.dateLabel) ||
+        clean(item.datePaid) ||
+        clean(item.paymentDate) ||
+        clean(item.dueDate) ||
+        clean(item.monthLabel) ||
+        clean(item.month) ||
+        clean(item.monthKey) ||
+        formatDateLabel(item.updatedAt) ||
+        formatDateLabel(item.createdAt) ||
+        "No date";
+
+      const sortDate =
+        toMillis(item.datePaid) ||
+        toMillis(item.paymentDate) ||
+        toMillis(item.dueDate) ||
+        toMillis(item.updatedAt) ||
+        toMillis(item.createdAt);
+
+      return {
+        dateLabel,
+        status,
+        amount,
+        sortDate,
+      };
+    })
+    .sort((a, b) => b.sortDate - a.sortDate);
+};
+
 function getPaginationRange(opts: {
   currentPage: number;
   totalPages: number;
@@ -48,7 +161,7 @@ function getPaginationRange(opts: {
 }) {
   const { currentPage, totalPages, siblingCount = 1 } = opts;
 
-  const totalNumbers = siblingCount * 2 + 5; // first + last + current + siblings + 2 dots
+  const totalNumbers = siblingCount * 2 + 5;
   if (totalPages <= totalNumbers) {
     return Array.from({ length: totalPages }, (_, i) => i + 1);
   }
@@ -63,14 +176,12 @@ function getPaginationRange(opts: {
   const lastPageIndex = totalPages;
 
   if (!showLeftDots && showRightDots) {
-    // 1 2 3 4 5 ... last
     const leftItemCount = 3 + 2 * siblingCount;
     const leftRange = Array.from({ length: leftItemCount }, (_, i) => i + 1);
     return [...leftRange, "...", lastPageIndex];
   }
 
   if (showLeftDots && !showRightDots) {
-    // 1 ... 6 7 8 9 10
     const rightItemCount = 3 + 2 * siblingCount;
     const start = totalPages - rightItemCount + 1;
     const rightRange = Array.from(
@@ -80,7 +191,6 @@ function getPaginationRange(opts: {
     return [firstPageIndex, "...", ...rightRange];
   }
 
-  // 1 ... 4 5 6 ... last
   const middleRange = Array.from(
     { length: rightSiblingIndex - leftSiblingIndex + 1 },
     (_, i) => leftSiblingIndex + i,
@@ -100,7 +210,6 @@ function Pagination({ page, totalPages, onPageChange }: PaginationProps) {
 
   return (
     <div className="mt-6 flex items-center justify-between gap-3">
-      {/* Mobile pagination */}
       <div className="flex w-full items-center justify-between gap-3 lg:hidden">
         <button
           type="button"
@@ -126,7 +235,6 @@ function Pagination({ page, totalPages, onPageChange }: PaginationProps) {
         </button>
       </div>
 
-      {/* Desktop pagination */}
       <div className="hidden w-full items-center justify-between lg:flex">
         <button
           type="button"
@@ -183,28 +291,38 @@ function Pagination({ page, totalPages, onPageChange }: PaginationProps) {
   );
 }
 
-export default function PaymentHistory({
-  totalMonthlyDuePaid = 5356,
-  unpaidBalance = 1257,
-  upcomingPaymentDate = "April 20, 2025, Sun",
-  lastPaymentDate = "March 20, 2025, Thu",
-  history = [
-    { dateLabel: "Apr 20, 2025, Sun", status: "Unpaid", amount: 300 },
-    { dateLabel: "Mar 20, 2025, Thu", status: "Paid", amount: 300 },
-    { dateLabel: "Feb 20, 2025, Sun", status: "Paid", amount: 300 },
-    { dateLabel: "Jan 20, 2025, Mon", status: "Paid", amount: 300 },
-    { dateLabel: "Dec 20, 2024, Fri", status: "Paid", amount: 300 },
-    { dateLabel: "Nov 20, 2024, Wed", status: "Unpaid", amount: 300 },
-    { dateLabel: "Oct 20, 2024, Sun", status: "Unpaid", amount: 300 },
-    { dateLabel: "Sep 20, 2024, Fri", status: "Unpaid", amount: 300 },
-  ],
-}: Props) {
-  const { user: clerkUser } = useUser();
-  const { data: user } = useFirestoreUser(clerkUser?.id);
+export default function PaymentHistory({}: Props) {
+  const { user: clerkUser, isLoaded } = useUser();
+  const { data: user, isLoading, error } = useFirestoreUser(clerkUser?.id);
 
-  // ✅ pagination state
+  const history = useMemo(() => getPaymentHistoryFromUser(user), [user]);
+
+  const totalMonthlyDuePaid = useMemo(
+    () =>
+      history
+        .filter((item) => item.status === "Paid")
+        .reduce((sum, item) => sum + item.amount, 0),
+    [history],
+  );
+
+  const unpaidBalance = useMemo(
+    () =>
+      history
+        .filter((item) => item.status === "Unpaid")
+        .reduce((sum, item) => sum + item.amount, 0),
+    [history],
+  );
+
+  const upcomingPaymentDate =
+    history.find((item) => item.status === "Unpaid")?.dateLabel ||
+    "No upcoming payment";
+
+  const lastPaymentDate =
+    history.find((item) => item.status === "Paid")?.dateLabel ||
+    "No payment yet";
+
   const [page, setPage] = useState(1);
-  const pageSize = 6; // adjust
+  const pageSize = 6;
   const totalPages = Math.max(1, Math.ceil(history.length / pageSize));
 
   const pagedHistory = useMemo(() => {
@@ -212,28 +330,41 @@ export default function PaymentHistory({
     return history.slice(start, start + pageSize);
   }, [history, page]);
 
-  // If history length changes, keep page in range
-  if (page > totalPages) setPage(totalPages);
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
+  const loading = !isLoaded || isLoading;
 
   return (
     <div>
-      {/* Greeting / Profile strip */}
+      {error ? (
+        <div className="mb-6 rounded-2xl border border-red-100 bg-red-50 p-4">
+          <p className="text-sm font-semibold text-red-700">
+            Failed to load payment history.
+          </p>
+        </div>
+      ) : null}
+
       <section className="rounded-3xl bg-emerald-700 p-5 text-white shadow-sm ring-1 ring-emerald-600/30 sm:p-7">
         <p className="text-xs text-emerald-50/90">Good Day!</p>
         <p className="mt-1 text-lg font-extrabold tracking-tight sm:text-xl">
-          {user?.fullName}
+          {loading ? "Loading..." : user?.fullName || "Resident"}
         </p>
-        <p className="mt-1 text-xs text-emerald-50/80">{user?.address}</p>
+        <p className="mt-1 text-xs text-emerald-50/80">
+          {loading ? "Loading address..." : user?.address || "No address found"}
+        </p>
       </section>
 
-      {/* Summary cards */}
       <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200 sm:p-6">
           <p className="text-xs font-semibold text-zinc-500">
             Total Monthly Due Paid:
           </p>
           <p className="mt-2 text-2xl font-extrabold text-zinc-900">
-            {peso(totalMonthlyDuePaid)}
+            {loading ? "..." : peso(totalMonthlyDuePaid)}
           </p>
 
           <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
@@ -241,7 +372,7 @@ export default function PaymentHistory({
               Upcoming Payment
             </p>
             <p className="mt-1 text-sm text-emerald-900/80">
-              {upcomingPaymentDate}
+              {loading ? "Loading..." : upcomingPaymentDate}
             </p>
           </div>
         </div>
@@ -249,7 +380,7 @@ export default function PaymentHistory({
         <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200 sm:p-6">
           <p className="text-xs font-semibold text-zinc-500">Unpaid Balance:</p>
           <p className="mt-2 text-2xl font-extrabold text-zinc-900">
-            {peso(unpaidBalance)}
+            {loading ? "..." : peso(unpaidBalance)}
           </p>
 
           <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
@@ -257,13 +388,12 @@ export default function PaymentHistory({
               Last Payment
             </p>
             <p className="mt-1 text-sm text-emerald-900/80">
-              {lastPaymentDate}
+              {loading ? "Loading..." : lastPaymentDate}
             </p>
           </div>
         </div>
       </section>
 
-      {/* History */}
       <section className="mt-6 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200 sm:p-7">
         <div>
           <h2 className="text-lg font-extrabold text-zinc-900">
@@ -274,38 +404,50 @@ export default function PaymentHistory({
           </p>
         </div>
 
-        {/* Mobile list */}
         <div className="mt-5 space-y-3 lg:hidden">
-          {pagedHistory.map((item, idx) => {
-            const statusClass =
-              item.status === "Paid" ? "text-emerald-700" : "text-red-600";
+          {loading ? (
+            <div className="rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3">
+              <p className="text-sm font-semibold text-zinc-500">
+                Loading payment history...
+              </p>
+            </div>
+          ) : pagedHistory.length > 0 ? (
+            pagedHistory.map((item, idx) => {
+              const statusClass =
+                item.status === "Paid" ? "text-emerald-700" : "text-red-600";
 
-            return (
-              <div
-                key={`${item.dateLabel}-${idx}`}
-                className="flex items-center gap-3 rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3"
-              >
-                <div className="min-w-[140px]">
-                  <p className="text-xs font-bold text-zinc-900">
-                    {item.dateLabel}
-                  </p>
-                </div>
+              return (
+                <div
+                  key={`${item.dateLabel}-${idx}`}
+                  className="flex items-center gap-3 rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3"
+                >
+                  <div className="min-w-[140px]">
+                    <p className="text-xs font-bold text-zinc-900">
+                      {item.dateLabel}
+                    </p>
+                  </div>
 
-                <div className={`text-xs font-extrabold ${statusClass}`}>
-                  {item.status}
-                </div>
+                  <div className={`text-xs font-extrabold ${statusClass}`}>
+                    {item.status}
+                  </div>
 
-                <div className="ml-auto">
-                  <p className="text-sm font-extrabold text-zinc-900">
-                    {peso(item.amount)}
-                  </p>
+                  <div className="ml-auto">
+                    <p className="text-sm font-extrabold text-zinc-900">
+                      {peso(item.amount)}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          ) : (
+            <div className="rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3">
+              <p className="text-sm font-semibold text-zinc-500">
+                No payment history found.
+              </p>
+            </div>
+          )}
         </div>
 
-        {/* Desktop table */}
         <div className="mt-6 hidden lg:block">
           <div className="overflow-hidden rounded-2xl border border-zinc-200">
             <table className="w-full border-collapse bg-white">
@@ -317,39 +459,58 @@ export default function PaymentHistory({
                 </tr>
               </thead>
               <tbody>
-                {pagedHistory.map((item, idx) => {
-                  const statusPill =
-                    item.status === "Paid"
-                      ? "bg-emerald-50 text-emerald-800 border-emerald-100"
-                      : "bg-red-50 text-red-700 border-red-100";
-
-                  return (
-                    <tr
-                      key={`${item.dateLabel}-${idx}`}
-                      className="border-t border-zinc-100"
+                {loading ? (
+                  <tr className="border-t border-zinc-100">
+                    <td
+                      colSpan={3}
+                      className="px-4 py-6 text-sm font-semibold text-zinc-500"
                     >
-                      <td className="px-4 py-3 text-sm font-semibold text-zinc-900">
-                        {item.dateLabel}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-extrabold ${statusPill}`}
-                        >
-                          {item.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm font-extrabold text-zinc-900">
-                        {peso(item.amount)}
-                      </td>
-                    </tr>
-                  );
-                })}
+                      Loading payment history...
+                    </td>
+                  </tr>
+                ) : pagedHistory.length > 0 ? (
+                  pagedHistory.map((item, idx) => {
+                    const statusPill =
+                      item.status === "Paid"
+                        ? "bg-emerald-50 text-emerald-800 border-emerald-100"
+                        : "bg-red-50 text-red-700 border-red-100";
+
+                    return (
+                      <tr
+                        key={`${item.dateLabel}-${idx}`}
+                        className="border-t border-zinc-100"
+                      >
+                        <td className="px-4 py-3 text-sm font-semibold text-zinc-900">
+                          {item.dateLabel}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-extrabold ${statusPill}`}
+                          >
+                            {item.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm font-extrabold text-zinc-900">
+                          {peso(item.amount)}
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr className="border-t border-zinc-100">
+                    <td
+                      colSpan={3}
+                      className="px-4 py-6 text-sm font-semibold text-zinc-500"
+                    >
+                      No payment history found.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* ✅ Pagination (responsive mobile + desktop) */}
         <Pagination
           page={page}
           totalPages={totalPages}

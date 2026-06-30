@@ -15,12 +15,12 @@ const duesBreakdown = [
     description: "Covers collection and disposal to maintain cleanliness.",
     icon: Trash2,
   },
-  {
+  /*  {
     title: "Admin Costs",
     description:
       "Includes office electricity, water billing, internet, personnel, and supplies.",
     icon: Users,
-  },
+  }, */
   {
     title: "Street Light and Labor",
     description:
