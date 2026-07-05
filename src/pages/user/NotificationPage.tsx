@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useUser } from "@clerk/clerk-react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, Bell, Clock, Dot, Inbox, RefreshCw } from "lucide-react";
+import { AlertCircle, Clock, Dot, Inbox, RefreshCw } from "lucide-react";
 import { useFirestoreUser } from "../../features/auth/hooks/useFirestoreUser";
 import { getNotificationsByResidentId } from "../../features/auth/services/auth.service";
 
