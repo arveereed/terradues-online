@@ -47,12 +47,12 @@ export default function SettingsPage() {
               active={active === "security"}
               onClick={() => setActive("security")}
             />
-            <SettingsNavItem
+            {/*  <SettingsNavItem
               icon={AlertTriangle}
               label="Report a Problem"
               active={active === "report"}
               onClick={() => setActive("report")}
-            />
+            /> */}
             <SettingsNavItem
               icon={Info}
               label="About TerraDues"
