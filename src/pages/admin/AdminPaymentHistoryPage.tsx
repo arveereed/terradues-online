@@ -10,7 +10,7 @@ import {
   UserRound,
 } from "lucide-react";
 import AppInput from "../../components/AppInput";
-import { getAllUsers } from "../../features/auth/services/auth.service";
+import { getAllUsersWithCurrentMonthPayments } from "../../features/auth/services/auth.service";
 import type { User } from "../../types";
 
 type PaymentStatus = "Paid" | "Not Paid";
@@ -314,10 +314,28 @@ const getResidentCurrentDueFromHistory = (
   return monthlyCharge + previousRemainingBalance;
 };
 
+const getCurrentMonthPaymentFromHistory = (history: PaymentHistoryRow[]) => {
+  const currentMonthKey = getCurrentMonthKey();
+
+  const currentMonthRecord = history.find(
+    (row) => row.monthKey === currentMonthKey,
+  );
+
+  if (!currentMonthRecord) return null;
+
+  return {
+    status: currentMonthRecord.status,
+    date:
+      currentMonthRecord.status === "Paid" ? currentMonthRecord.datePaid : "-",
+    totalDue: currentMonthRecord.totalDue,
+  };
+};
+
 const toResidentPaymentRow = (user: ResidentUser): ResidentPaymentRow => {
   const monthlyCharge = getPaymentAmount(user);
-  const status = getStoredPaymentStatus(user);
   const history = getResidentHistory(user, monthlyCharge);
+  const currentPayment = getCurrentMonthPaymentFromHistory(history);
+  const status = currentPayment?.status ?? getStoredPaymentStatus(user);
 
   return {
     id: user.id,
@@ -332,9 +350,11 @@ const toResidentPaymentRow = (user: ResidentUser): ResidentPaymentRow => {
     lot: formatLocationPart(user.lot, "Lot"),
     lotNo: toLotNumber(user.lot),
     address: clean(user.address),
-    amount: getResidentCurrentDueFromHistory(history, monthlyCharge),
     monthlyCharge,
-    date: getPaymentDate(user),
+    amount:
+      currentPayment?.totalDue ??
+      getResidentCurrentDueFromHistory(history, monthlyCharge),
+    date: currentPayment?.date ?? getPaymentDate(user),
     status,
     history,
   };
@@ -361,7 +381,7 @@ export default function AdminPaymentHistoryPage() {
     setDbError(null);
 
     try {
-      const users = await getAllUsers();
+      const users = await getAllUsersWithCurrentMonthPayments();
 
       const residentRows = users
         .filter(isResidentUser)

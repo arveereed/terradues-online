@@ -9,6 +9,7 @@ import {
   Timestamp,
   updateDoc,
   where,
+  runTransaction,
 } from "firebase/firestore";
 import type {
   UserDataSignUpOwnerType,
@@ -196,6 +197,136 @@ const getPreviousRemainingBalance = (
   if (previousRows.length === 0) return 0;
 
   return previousRows[previousRows.length - 1].remainingBalance;
+};
+
+const isResidentPaymentUser = (user: User) =>
+  user.userType === "Owner" || user.userType === "Renter";
+
+const getResidentMonthlyCharge = (user: User) => {
+  const rawAmount =
+    (user as { paymentAmount?: unknown }).paymentAmount ??
+    (user as { amount?: unknown }).amount;
+
+  const amount = Number(rawAmount);
+
+  return Number.isFinite(amount) && amount > 0 ? amount : 300;
+};
+
+const buildCurrentMonthRecord = ({
+  residentId,
+  history,
+  monthlyCharge,
+}: {
+  residentId: string;
+  history: PaymentHistoryRecord[];
+  monthlyCharge: number;
+}) => {
+  const { monthKey, monthLabel } = getPhilippinePaymentDate();
+  const beginningBalance = getPreviousRemainingBalance(history, monthKey);
+  const totalDue = monthlyCharge + beginningBalance;
+  const timestamp = Timestamp.now();
+
+  return {
+    id: `${residentId}-${monthKey}`,
+    monthKey,
+    monthLabel,
+    beginningBalance,
+    currentCharges: monthlyCharge,
+    additionalCharges: beginningBalance,
+    totalDue,
+    collection: 0,
+    remainingBalance: totalDue,
+    status: "Not Paid" as PaymentStatus,
+    datePaid: "-",
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  } satisfies PaymentHistoryRecord;
+};
+
+export const ensureCurrentMonthPaymentRecord = async (resident: User) => {
+  if (!isResidentPaymentUser(resident)) return resident;
+
+  const residentRef = doc(db, "users", resident.id);
+  const { monthKey, monthLabel } = getPhilippinePaymentDate();
+
+  return runTransaction(db, async (transaction) => {
+    const residentSnap = await transaction.get(residentRef);
+
+    if (!residentSnap.exists()) {
+      throw new Error("Resident record was not found.");
+    }
+
+    const residentData = residentSnap.data() as User;
+    const monthlyCharge = getResidentMonthlyCharge(residentData);
+
+    const rawHistory = Array.isArray(
+      (residentData as { paymentHistory?: unknown }).paymentHistory,
+    )
+      ? (residentData as { paymentHistory?: unknown }).paymentHistory
+      : Array.isArray((residentData as { payments?: unknown }).payments)
+        ? (residentData as { payments?: unknown }).payments
+        : [];
+
+    const normalizedHistory = normalizePaymentHistory(
+      rawHistory,
+      monthlyCharge,
+    );
+
+    const currentMonthExists = normalizedHistory.some(
+      (row) => row.monthKey === monthKey || row.monthLabel === monthLabel,
+    );
+
+    if (currentMonthExists) {
+      return {
+        ...residentData,
+        id: resident.id,
+        paymentHistory: normalizedHistory.sort((a, b) =>
+          compareMonthKey(b.monthKey, a.monthKey),
+        ),
+      } as unknown as User;
+    }
+
+    const currentMonthRecord = buildCurrentMonthRecord({
+      residentId: resident.id,
+      history: normalizedHistory,
+      monthlyCharge,
+    });
+
+    const paymentHistory = [currentMonthRecord, ...normalizedHistory].sort(
+      (a, b) => compareMonthKey(b.monthKey, a.monthKey),
+    );
+
+    transaction.update(residentRef, {
+      paymentHistory,
+      currentMonthDue: currentMonthRecord.totalDue,
+      remainingBalance: currentMonthRecord.remainingBalance,
+      paymentStatus: currentMonthRecord.status,
+      paymentDate: "",
+      updatedAt: serverTimestamp(),
+    });
+
+    return {
+      ...residentData,
+      id: resident.id,
+      paymentStatus: currentMonthRecord.status,
+      paymentDate: "",
+      paymentHistory,
+      currentMonthDue: currentMonthRecord.totalDue,
+      remainingBalance: currentMonthRecord.remainingBalance,
+    } as unknown as User;
+  });
+};
+
+export const getAllUsersWithCurrentMonthPayments = async () => {
+  const users = await getAllUsers();
+
+  return Promise.all(
+    users.map((user) =>
+      isResidentPaymentUser(user)
+        ? ensureCurrentMonthPaymentRecord(user)
+        : user,
+    ),
+  );
 };
 
 export const updateResidentPaymentForMonth = async ({

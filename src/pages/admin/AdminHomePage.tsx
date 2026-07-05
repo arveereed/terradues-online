@@ -19,7 +19,7 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
-import { getAllUsers } from "../../features/auth/services/auth.service";
+import { getAllUsersWithCurrentMonthPayments } from "../../features/auth/services/auth.service";
 import type { User } from "../../types";
 
 type PaymentStatus = "Paid" | "Not Paid";
@@ -38,7 +38,9 @@ type ResidentUser = User & {
 type PaymentHistoryRow = {
   monthKey?: string;
   monthLabel?: string;
+  totalDue?: number;
   collection?: number;
+  remainingBalance?: number;
   status?: PaymentStatus;
   datePaid?: string;
   updatedAt?: unknown;
@@ -103,7 +105,20 @@ const getPaymentHistory = (user: ResidentUser): PaymentHistoryRow[] => {
   return rawHistory.map((item) => {
     const row = item as Record<string, unknown>;
 
+    const currentCharges = toNumber(
+      row.currentCharges ?? row.charges ?? row.amount,
+      300,
+    );
+
+    const beginningBalance = toNumber(
+      row.beginningBalance ?? row.additionalCharges ?? row.additionalCharge,
+      0,
+    );
+
+    const totalDue = toNumber(row.totalDue, currentCharges + beginningBalance);
+
     const collection = toNumber(row.collection ?? row.paid ?? row.payment, 0);
+
     const status =
       row.status === "Paid" || row.status === "Not Paid"
         ? row.status
@@ -114,21 +129,18 @@ const getPaymentHistory = (user: ResidentUser): PaymentHistoryRow[] => {
     return {
       monthKey: clean(row.monthKey),
       monthLabel: clean(row.monthLabel) || clean(row.month),
+      totalDue,
       collection: status === "Paid" ? collection : 0,
+      remainingBalance: toNumber(
+        row.remainingBalance,
+        status === "Paid" ? 0 : Math.max(totalDue - collection, 0),
+      ),
       status,
       datePaid: clean(row.datePaid) || clean(row.paymentDate),
       updatedAt: row.updatedAt,
       createdAt: row.createdAt,
     };
   });
-};
-
-const getStoredPaymentStatus = (user: ResidentUser): PaymentStatus => {
-  const paymentStatus = (user as { paymentStatus?: unknown }).paymentStatus;
-
-  return paymentStatus === "Paid" || paymentStatus === "Not Paid"
-    ? paymentStatus
-    : "Not Paid";
 };
 
 const getResidentName = (user: ResidentUser) =>
@@ -166,7 +178,7 @@ export default function AdminHomePage() {
     isRefetching,
   } = useQuery({
     queryKey: ["admin-dashboard-users"],
-    queryFn: getAllUsers,
+    queryFn: getAllUsersWithCurrentMonthPayments,
     staleTime: 1000 * 60 * 5,
   });
 
@@ -206,8 +218,7 @@ export default function AdminHomePage() {
   const duesCollectedThisMonth = useMemo(
     () =>
       residents.reduce((sum, resident) => {
-        const history = getPaymentHistory(resident);
-        const currentMonthRecord = history.find(
+        const currentMonthRecord = getPaymentHistory(resident).find(
           (row) => row.monthKey === currentMonthKey,
         );
 
@@ -216,19 +227,50 @@ export default function AdminHomePage() {
     [currentMonthKey, residents],
   );
 
-  const unpaidDuesCount = useMemo(
+  const paidResidentsCount = useMemo(
     () =>
       residents.filter((resident) => {
-        const history = getPaymentHistory(resident);
-        const currentMonthRecord = history.find(
+        const currentMonthRecord = getPaymentHistory(resident).find(
           (row) => row.monthKey === currentMonthKey,
         );
 
-        if (currentMonthRecord) {
-          return currentMonthRecord.status !== "Paid";
-        }
+        return currentMonthRecord?.status === "Paid";
+      }).length,
+    [currentMonthKey, residents],
+  );
 
-        return getStoredPaymentStatus(resident) !== "Paid";
+  const totalAmountDueThisMonth = useMemo(
+    () =>
+      residents.reduce((sum, resident) => {
+        const currentMonthRecord = getPaymentHistory(resident).find(
+          (row) => row.monthKey === currentMonthKey,
+        );
+
+        return sum + toNumber(currentMonthRecord?.totalDue, 0);
+      }, 0),
+    [currentMonthKey, residents],
+  );
+
+  const remainingBalanceThisMonth = useMemo(
+    () =>
+      residents.reduce((sum, resident) => {
+        const currentMonthRecord = getPaymentHistory(resident).find(
+          (row) => row.monthKey === currentMonthKey,
+        );
+
+        return sum + toNumber(currentMonthRecord?.remainingBalance, 0);
+      }, 0),
+    [currentMonthKey, residents],
+  );
+
+  const unpaidDuesCount = useMemo(
+    () =>
+      residents.filter((resident) => {
+        const currentMonthRecord = getPaymentHistory(resident).find(
+          (row) => row.monthKey === currentMonthKey,
+        );
+
+        return currentMonthRecord?.status !== "Paid";
       }).length,
     [currentMonthKey, residents],
   );
@@ -241,7 +283,11 @@ export default function AdminHomePage() {
           .map((history) => ({
             id: `${resident.id}-${history.monthKey || history.monthLabel}`,
             title: "Payment received",
-            description: `${getResidentName(resident) || "Resident"} paid ${history.monthLabel || "monthly dues"} • ${getResidentLocation(resident)}`,
+            description: `${
+              getResidentName(resident) || "Resident"
+            } paid ${history.monthLabel || "monthly dues"} • ${getResidentLocation(
+              resident,
+            )}`,
             sortTime: Math.max(
               toMillis(history.updatedAt),
               toMillis(history.createdAt),
@@ -254,22 +300,40 @@ export default function AdminHomePage() {
 
   const stats: StatCard[] = [
     {
-      label: "Total Users",
+      label: "Total Residents",
       value: isLoading ? "..." : String(residents.length),
       icon: UserRound,
-      hint: "All residents",
+      hint: "Current month",
     },
     {
-      label: "Dues Collected",
+      label: "Paid Residents",
+      value: isLoading ? "..." : String(paidResidentsCount),
+      icon: BadgeCheck,
+      hint: "Current month",
+    },
+    {
+      label: "Unpaid Residents",
+      value: isLoading ? "..." : String(unpaidDuesCount),
+      icon: UserRound,
+      hint: "Current month",
+    },
+    {
+      label: "Monthly Collection",
       value: isLoading ? "..." : peso(duesCollectedThisMonth),
       icon: Wallet,
-      hint: "This month",
+      hint: "Current month",
     },
     {
-      label: "Unpaid Dues",
-      value: isLoading ? "..." : String(unpaidDuesCount),
-      icon: BadgeCheck,
-      hint: "Needs follow-up",
+      label: "Remaining Balance",
+      value: isLoading ? "..." : peso(remainingBalanceThisMonth),
+      icon: BarChart3,
+      hint: "Current month",
+    },
+    {
+      label: "Total Amount Due",
+      value: isLoading ? "..." : peso(totalAmountDueThisMonth),
+      icon: Wallet,
+      hint: "Current month",
     },
   ];
 
@@ -321,9 +385,10 @@ export default function AdminHomePage() {
         </div>
       </div>
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {stats.map((s) => {
           const Icon = s.icon;
+
           return (
             <div
               key={s.label}
@@ -338,9 +403,11 @@ export default function AdminHomePage() {
                   <p className="text-xs font-semibold text-zinc-500">
                     {s.label}
                   </p>
+
                   <p className="mt-1 truncate text-2xl font-extrabold tracking-tight text-zinc-900">
                     {s.value}
                   </p>
+
                   {s.hint ? (
                     <p className="mt-1 text-xs font-semibold text-zinc-400">
                       {s.hint}
@@ -361,6 +428,7 @@ export default function AdminHomePage() {
                 <h2 className="text-sm font-extrabold text-zinc-900">
                   Monthly Dues Collection
                 </h2>
+
                 <p className="mt-1 text-sm text-zinc-500">
                   Overview of collected dues per month.
                 </p>
@@ -426,6 +494,7 @@ export default function AdminHomePage() {
             <p className="text-sm font-extrabold text-zinc-900">
               Recent Activity
             </p>
+
             <p className="mt-2 text-sm text-zinc-500">
               Add latest payments, reminders, or notifications here.
             </p>
@@ -440,6 +509,7 @@ export default function AdminHomePage() {
                     <p className="text-sm font-semibold text-zinc-900">
                       {activity.title}
                     </p>
+
                     <p className="mt-1 text-xs font-semibold text-zinc-500">
                       {activity.description}
                     </p>
@@ -451,6 +521,7 @@ export default function AdminHomePage() {
                     <p className="text-sm font-semibold text-zinc-900">
                       Payment received
                     </p>
+
                     <p className="mt-1 text-xs font-semibold text-zinc-500">
                       No recent payment activity yet
                     </p>
@@ -460,6 +531,7 @@ export default function AdminHomePage() {
                     <p className="text-sm font-semibold text-zinc-900">
                       Reminder sent
                     </p>
+
                     <p className="mt-1 text-xs font-semibold text-zinc-500">
                       No recent reminders yet
                     </p>
