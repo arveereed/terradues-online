@@ -1,6 +1,7 @@
 import { useUser } from "@clerk/clerk-react";
 import { useEffect, useMemo, useState } from "react";
 import { useFirestoreUser } from "../../features/auth/hooks/useFirestoreUser";
+import { RefreshCw } from "lucide-react";
 
 type PaymentStatus = "Paid" | "Unpaid";
 
@@ -8,6 +9,8 @@ type PaymentItem = {
   dateLabel: string;
   status: PaymentStatus;
   amount: number;
+  collection: number;
+  remainingBalance: number;
   sortDate: number;
 };
 
@@ -21,7 +24,14 @@ type FirestorePaymentRow = {
   monthKey?: string;
   status?: string;
   amount?: number | string;
+  totalDue?: number | string;
+  currentCharges?: number | string;
+  charges?: number | string;
+  beginningBalance?: number | string;
+  additionalCharges?: number | string;
+  additionalCharge?: number | string;
   collection?: number | string;
+  remainingBalance?: number | string;
   paid?: number | string;
   payment?: number | string;
   createdAt?: unknown;
@@ -57,6 +67,21 @@ const toNumber = (value: unknown, fallback = 0) => {
 const clean = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
 
+const isEmptyPaymentDate = (value: unknown) => {
+  const text = clean(value).toLowerCase();
+
+  return !text || text === "-" || text === "no date";
+};
+
+const getMonthKeyMillis = (monthKey: unknown) => {
+  const value = clean(monthKey);
+  const [year, month] = value.split("-").map((part) => Number(part));
+
+  if (!year || !month) return 0;
+
+  return new Date(year, month - 1, 1).getTime();
+};
+
 const toMillis = (value: unknown) => {
   if (!value) return 0;
 
@@ -80,6 +105,41 @@ const toMillis = (value: unknown) => {
   }
 
   return 0;
+};
+
+const formatReadableDate = (value: unknown) => {
+  const text = clean(value);
+
+  if (!text) return "";
+
+  // Handles MM-DD-YY (e.g. 09-03-26)
+  const match = text.match(/^(\d{2})-(\d{2})-(\d{2})$/);
+
+  if (match) {
+    const [, mm, dd, yy] = match;
+
+    const year = Number(yy) + 2000;
+    const date = new Date(year, Number(mm) - 1, Number(dd));
+
+    return new Intl.DateTimeFormat("en-PH", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    }).format(date);
+  }
+
+  // Handles Firestore Timestamp / ISO string
+  const millis = toMillis(value);
+
+  if (millis) {
+    return new Intl.DateTimeFormat("en-PH", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    }).format(new Date(millis));
+  }
+
+  return text;
 };
 
 const formatDateLabel = (value: unknown) => {
@@ -118,18 +178,43 @@ const getPaymentHistoryFromUser = (user: unknown): PaymentItem[] => {
 
   return rawHistory
     .map((item) => {
-      const amount = toNumber(
-        item.amount ?? item.collection ?? item.paid ?? item.payment,
+      const currentCharges = toNumber(
+        item.currentCharges ?? item.charges ?? item.amount,
         0,
       );
 
-      const status = normalizeStatus(item.status, amount);
+      const beginningBalance = toNumber(
+        item.beginningBalance ??
+          item.additionalCharges ??
+          item.additionalCharge,
+        0,
+      );
 
-      const dateLabel =
-        clean(item.dateLabel) ||
-        clean(item.datePaid) ||
-        clean(item.paymentDate) ||
-        clean(item.dueDate) ||
+      const totalDue = toNumber(
+        item.totalDue,
+        currentCharges + beginningBalance,
+      );
+
+      const collection = toNumber(
+        item.collection ?? item.paid ?? item.payment,
+        0,
+      );
+
+      const status = normalizeStatus(item.status, collection);
+
+      const paidDateLabel =
+        formatReadableDate(item.dateLabel) ||
+        (!isEmptyPaymentDate(item.datePaid)
+          ? formatReadableDate(item.datePaid)
+          : "") ||
+        (!isEmptyPaymentDate(item.paymentDate)
+          ? formatReadableDate(item.paymentDate)
+          : "") ||
+        (!isEmptyPaymentDate(item.dueDate)
+          ? formatReadableDate(item.dueDate)
+          : "");
+
+      const monthDateLabel =
         clean(item.monthLabel) ||
         clean(item.month) ||
         clean(item.monthKey) ||
@@ -137,7 +222,18 @@ const getPaymentHistoryFromUser = (user: unknown): PaymentItem[] => {
         formatDateLabel(item.createdAt) ||
         "No date";
 
+      const dateLabel =
+        status === "Paid" ? paidDateLabel || monthDateLabel : monthDateLabel;
+
+      const amount = status === "Paid" ? collection : totalDue;
+
+      const remainingBalance = toNumber(
+        item.remainingBalance,
+        status === "Paid" ? 0 : totalDue,
+      );
+
       const sortDate =
+        getMonthKeyMillis(item.monthKey) ||
         toMillis(item.datePaid) ||
         toMillis(item.paymentDate) ||
         toMillis(item.dueDate) ||
@@ -148,6 +244,8 @@ const getPaymentHistoryFromUser = (user: unknown): PaymentItem[] => {
         dateLabel,
         status,
         amount,
+        collection: status === "Paid" ? collection : 0,
+        remainingBalance: status === "Paid" ? 0 : remainingBalance,
         sortDate,
       };
     })
@@ -293,7 +391,13 @@ function Pagination({ page, totalPages, onPageChange }: PaginationProps) {
 
 export default function PaymentHistory({}: Props) {
   const { user: clerkUser, isLoaded } = useUser();
-  const { data: user, isLoading, error } = useFirestoreUser(clerkUser?.id);
+  const {
+    data: user,
+    isLoading,
+    error,
+    refetch,
+    isRefetching,
+  } = useFirestoreUser(clerkUser?.id);
 
   const history = useMemo(() => getPaymentHistoryFromUser(user), [user]);
 
@@ -398,13 +502,28 @@ export default function PaymentHistory({}: Props) {
       </section>
 
       <section className="mt-6 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200 sm:p-7">
-        <div>
-          <h2 className="text-lg font-extrabold text-zinc-900">
-            Payment History
-          </h2>
-          <p className="mt-1 text-sm text-zinc-500">
-            Track your dues and verification status.
-          </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-extrabold text-zinc-900">
+              Payment History
+            </h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              Track your dues and verification status.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => refetch()}
+            disabled={loading || isRefetching}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 text-sm font-extrabold text-emerald-700 shadow-sm transition hover:bg-emerald-100 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RefreshCw
+              size={17}
+              className={isRefetching ? "animate-spin" : ""}
+            />
+            {isRefetching ? "Refreshing..." : "Refresh"}
+          </button>
         </div>
 
         <div className="mt-5 space-y-3 lg:hidden">
