@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { User, Shield, AlertTriangle, Info, FileText } from "lucide-react";
+import { User, Shield, Info, FileText } from "lucide-react";
 import SettingsNavItem from "../../components/sections/SettingsNavItem";
 import PersonalDetailsSection from "../../components/sections/PersonalDetailsSection";
 import SecuritySection from "../../components/sections/SecuritySection";
