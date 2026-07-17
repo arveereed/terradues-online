@@ -181,10 +181,27 @@ export default function AdminListOfResidentsPage() {
 
     try {
       const users = await getAllUsers();
-      setResidents(users.filter(isResidentUser).map(toResident));
+
+      setResidents(
+        users
+          .filter(isResidentUser)
+          /*
+           * Backward compatibility:
+           *
+           * Existing users without approvalStatus are treated as approved.
+           * New pending and denied registrations are excluded.
+           */
+          .filter(
+            (user) =>
+              !user.approvalStatus || user.approvalStatus === "approved",
+          )
+          .map(toResident),
+      );
     } catch (error) {
       console.error("getAllUsers failed:", error);
+
       setResidents([]);
+
       setDbError(
         error instanceof Error ? error.message : "Failed to load residents.",
       );

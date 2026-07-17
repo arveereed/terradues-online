@@ -1,3 +1,5 @@
+export type ApprovalStatus = "pending" | "approved" | "denied";
+
 export type UserDataSignUpOwnerType = {
   userType: "Owner" | "Renter";
   user_id: string;
@@ -21,6 +23,8 @@ export type UserDataSignUpOwnerType = {
 
   fullName: string;
   address: string;
+  role?: "resident" | "admin";
+  approvalStatus?: ApprovalStatus;
 };
 
 export type UserDataSignUpRenterType = Omit<
@@ -40,15 +44,25 @@ type FirestoreTimestamp = {
   nanoseconds: number;
 };
 
-type UserOwner = UserDataSignUpOwnerType & {
-  id: string; //
-  createdAt: FirestoreTimestamp;
+type ApprovalMetadata = {
+  approvedAt?: FirestoreTimestamp;
+  approvedBy?: string;
+  deniedAt?: FirestoreTimestamp;
+  deniedBy?: string;
+  denialReason?: string;
 };
 
-type UserRenter = UserDataSignUpRenterType & {
-  id: string; //
-  createdAt: FirestoreTimestamp;
-};
+type UserOwner = UserDataSignUpOwnerType &
+  ApprovalMetadata & {
+    id: string;
+    createdAt: FirestoreTimestamp;
+  };
+
+type UserRenter = UserDataSignUpRenterType &
+  ApprovalMetadata & {
+    id: string;
+    createdAt: FirestoreTimestamp;
+  };
 
 // Main user type
 export type User = UserRenter | UserOwner;

@@ -9,6 +9,7 @@ import {
   Timestamp,
   updateDoc,
   where,
+  writeBatch,
   runTransaction,
   setDoc,
 } from "firebase/firestore";
@@ -22,27 +23,64 @@ import { db } from "../../../lib/firebase/firebase";
 export const addUser = async (
   userData: UserDataSignUpOwnerType | UserDataSignUpRenterType,
 ) => {
-  const usersCollection = collection(db, "users");
+  /*
+   * Use the Clerk user ID as the Firestore document ID.
+   *
+   * This prevents duplicate Firestore user records for the same
+   * Clerk account.
+   */
+  const userRef = doc(db, "users", userData.user_id);
+  const existing = await getDoc(userRef);
 
-  const docRef = await addDoc(usersCollection, {
+  if (existing.exists()) {
+    return userRef.id;
+  }
+
+  await setDoc(userRef, {
     ...userData,
+    role: "resident",
+    approvalStatus: "pending",
     createdAt: Timestamp.now(),
   });
-  return docRef.id;
+
+  return userRef.id;
 };
 
 export const getUserById = async (userId: string | undefined) => {
   try {
     const usersCollection = collection(db, "users");
+
     const q = query(usersCollection, where("user_id", "==", userId));
 
     const querySnapshot = await getDocs(q);
 
     if (!querySnapshot.empty) {
       const docSnap = querySnapshot.docs[0];
-      const user = { ...(docSnap.data() as User), id: docSnap.id };
 
-      if (isResidentPaymentUser(user)) {
+      const user = {
+        ...(docSnap.data() as User),
+        id: docSnap.id,
+      };
+
+      /*
+       * Backward compatibility:
+       *
+       * Existing users created before the registration approval
+       * feature do not have approvalStatus.
+       *
+       * They are treated as approved so existing valid residents
+       * are not suddenly locked out.
+       */
+      const approvalStatus = user.approvalStatus ?? "approved";
+
+      /*
+       * Only approved residents should trigger the monthly payment
+       * initialization flow.
+       *
+       * Pending and denied registrations should not receive normal
+       * resident payment records yet.
+       */
+      if (isResidentPaymentUser(user) && approvalStatus === "approved") {
         return ensureCurrentMonthPaymentRecord(user);
       }
 
@@ -50,9 +88,11 @@ export const getUserById = async (userId: string | undefined) => {
     }
 
     console.warn(`No user found with ID: ${userId}`);
+
     return null;
   } catch (error) {
     console.error("Error fetching user:", error);
+
     return null;
   }
 };
@@ -65,6 +105,121 @@ export const getAllUsers = async () => {
     ...(docSnap.data() as User),
     id: docSnap.id,
   }));
+};
+
+export type RegistrationDecision = "approved" | "denied";
+
+export const getRegistrationRequests = async () => {
+  const users = await getAllUsers();
+
+  return users.filter(
+    (user) =>
+      (user.userType === "Owner" || user.userType === "Renter") &&
+      user.approvalStatus === "pending",
+  );
+};
+
+export const updateResidentApproval = async ({
+  residentId,
+  decision,
+  decidedBy,
+  denialReason,
+}: {
+  residentId: string;
+  decision: RegistrationDecision;
+  decidedBy: string;
+  denialReason?: string;
+}) => {
+  const residentRef = doc(db, "users", residentId);
+
+  const residentSnap = await getDoc(residentRef);
+
+  if (!residentSnap.exists()) {
+    throw new Error("Resident record not found.");
+  }
+
+  const resident = residentSnap.data() as User;
+
+  if (resident.userType !== "Owner" && resident.userType !== "Renter") {
+    throw new Error("Only resident registrations can be reviewed.");
+  }
+
+  if (resident.approvalStatus !== "pending") {
+    throw new Error("This registration has already been reviewed.");
+  }
+
+  const timestamp = Timestamp.now();
+
+  const batch = writeBatch(db);
+
+  const common = {
+    approvalStatus: decision,
+    updatedAt: timestamp,
+  };
+
+  if (decision === "approved") {
+    batch.update(residentRef, {
+      ...common,
+
+      approvedAt: timestamp,
+      approvedBy: decidedBy,
+
+      deniedAt: null,
+      deniedBy: null,
+      denialReason: null,
+    });
+  } else {
+    batch.update(residentRef, {
+      ...common,
+
+      deniedAt: timestamp,
+      deniedBy: decidedBy,
+
+      denialReason: denialReason?.trim() || null,
+
+      approvedAt: null,
+      approvedBy: null,
+    });
+  }
+
+  /*
+   * Use a deterministic notification ID.
+   *
+   * This prevents duplicate approval/denial notifications
+   * for the same resident and decision.
+   */
+  const notificationId = `${residentId}-registration-${decision}`;
+
+  const notificationRef = doc(db, "notifications", notificationId);
+
+  batch.set(notificationRef, {
+    id: notificationId,
+
+    residentId,
+
+    userId: resident.user_id,
+
+    title:
+      decision === "approved" ? "Registration Approved" : "Registration Denied",
+
+    message:
+      decision === "approved"
+        ? "Your resident registration has been approved. You may now access your TerraDues account."
+        : "Your resident registration was not approved. Please contact the administrator for more information.",
+
+    type:
+      decision === "approved" ? "registration_approved" : "registration_denied",
+
+    unread: true,
+
+    createdAt: timestamp,
+  });
+
+  /*
+   * The registration update and notification creation
+   * succeed or fail together.
+   */
+  await batch.commit();
 };
 
 type PaymentStatus = "Paid" | "Not Paid";
@@ -578,6 +733,218 @@ export type UpdateUserProfilePayload = {
   lastName: string;
   contactNumber: string;
   gender: string;
+};
+
+export type ResubmitDeniedRegistrationPayload = {
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  contactNumber: string;
+  gender: string;
+  phase: string;
+  block: string;
+  lot: string;
+
+  /*
+   * These contain the final Cloudinary URLs.
+   *
+   * picture = Valid Government ID image
+   * document = Lease Agreement or House Turnover document
+   */
+  picture?: string;
+  document?: string;
+
+  familyMembers?: string;
+  occupancyType?: string[];
+  forRent?: boolean;
+
+  ownerName?: string;
+  ownerContactNumber?: string;
+  ownerAddress?: string;
+  ownerNumberOccupants?: string;
+};
+
+export const resubmitDeniedRegistration = async (
+  docId: string,
+  payload: ResubmitDeniedRegistrationPayload,
+) => {
+  const userRef = doc(db, "users", docId);
+  const userSnap = await getDoc(userRef);
+
+  if (!userSnap.exists()) {
+    throw new Error("Resident registration was not found.");
+  }
+
+  const userData = userSnap.data() as User;
+
+  if (userData.approvalStatus !== "denied") {
+    throw new Error("Only denied registrations can be edited and resubmitted.");
+  }
+
+  const firstName = payload.firstName.trim();
+  const middleName = payload.middleName.trim();
+  const lastName = payload.lastName.trim();
+  const contactNumber = payload.contactNumber.trim();
+  const gender = payload.gender.trim();
+  const phase = payload.phase.trim();
+  const block = payload.block.trim();
+  const lot = payload.lot.trim();
+
+  if (!firstName) {
+    throw new Error("First name is required.");
+  }
+
+  if (!lastName) {
+    throw new Error("Last name is required.");
+  }
+
+  if (!/^\d{10,11}$/.test(contactNumber)) {
+    throw new Error("Contact number must contain 10 to 11 digits.");
+  }
+
+  if (!gender) {
+    throw new Error("Gender is required.");
+  }
+
+  if (!/^\d+$/.test(phase)) {
+    throw new Error("Phase must contain numbers only.");
+  }
+
+  if (!/^\d+$/.test(block)) {
+    throw new Error("Block must contain numbers only.");
+  }
+
+  if (!/^\d+$/.test(lot)) {
+    throw new Error("Lot must contain numbers only.");
+  }
+
+  const fullName = [firstName, middleName, lastName].filter(Boolean).join(" ");
+
+  const address = `Blk ${block} Lot ${lot} Phase ${phase}`;
+
+  const finalPicture = payload.picture?.trim() || userData.picture;
+
+  const finalDocument = payload.document?.trim() || userData.document;
+
+  if (!finalPicture) {
+    throw new Error("A valid government ID image is required.");
+  }
+
+  if (!finalDocument) {
+    throw new Error(
+      userData.userType === "Renter"
+        ? "A house lease agreement document is required."
+        : "A house turnover document is required.",
+    );
+  }
+
+  const commonUpdates = {
+    firstName,
+    middleName,
+    lastName,
+    fullName,
+    contactNumber,
+    gender,
+    phase,
+    block,
+    lot,
+    address,
+
+    picture: finalPicture,
+    document: finalDocument,
+
+    approvalStatus: "pending" as const,
+    resubmittedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+
+    deniedAt: null,
+    deniedBy: null,
+    denialReason: null,
+
+    approvedAt: null,
+    approvedBy: null,
+  };
+
+  if (userData.userType === "Owner") {
+    const familyMembers = payload.familyMembers?.trim() ?? "";
+
+    if (!/^\d+$/.test(familyMembers)) {
+      throw new Error("Family members must contain numbers only.");
+    }
+
+    if (!payload.occupancyType?.length) {
+      throw new Error("Select at least one occupancy type.");
+    }
+
+    await updateDoc(userRef, {
+      ...commonUpdates,
+      familyMembers,
+      occupancyType: payload.occupancyType,
+      forRent: Boolean(payload.forRent),
+    });
+  } else {
+    const ownerName = payload.ownerName?.trim() ?? "";
+    const ownerContactNumber = payload.ownerContactNumber?.trim() ?? "";
+    const ownerAddress = payload.ownerAddress?.trim() ?? "";
+    const ownerNumberOccupants = payload.ownerNumberOccupants?.trim() ?? "";
+
+    if (!ownerName) {
+      throw new Error("Property owner name is required.");
+    }
+
+    if (!/^\d{10,11}$/.test(ownerContactNumber)) {
+      throw new Error(
+        "Property owner contact number must contain 10 to 11 digits.",
+      );
+    }
+
+    if (!ownerAddress) {
+      throw new Error("Property owner address is required.");
+    }
+
+    if (!/^\d+$/.test(ownerNumberOccupants)) {
+      throw new Error("Number of occupants must contain numbers only.");
+    }
+
+    await updateDoc(userRef, {
+      ...commonUpdates,
+      ownerName,
+      ownerContactNumber,
+      ownerAddress,
+      ownerNumberOccupants,
+    });
+  }
+
+  /*
+   * Remove the previous denied notification.
+   *
+   * setDoc with the same deterministic ID updates the existing
+   * notification instead of creating duplicates.
+   */
+  const notificationId = `${docId}-registration-resubmitted`;
+
+  await setDoc(doc(db, "notifications", notificationId), {
+    id: notificationId,
+    residentId: docId,
+    userId: userData.user_id,
+    title: "Registration Resubmitted",
+    message:
+      "Your corrected registration has been submitted for administrator review.",
+    type: "registration_resubmitted",
+    unread: true,
+    createdAt: serverTimestamp(),
+  });
+
+  return {
+    ...commonUpdates,
+    familyMembers: payload.familyMembers,
+    occupancyType: payload.occupancyType,
+    forRent: payload.forRent,
+    ownerName: payload.ownerName,
+    ownerContactNumber: payload.ownerContactNumber,
+    ownerAddress: payload.ownerAddress,
+    ownerNumberOccupants: payload.ownerNumberOccupants,
+  };
 };
 
 export const updateUserProfile = async (

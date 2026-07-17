@@ -9,6 +9,7 @@ import {
   CreditCard,
   BarChart3,
   ChevronRight,
+  UserCheck,
 } from "lucide-react";
 import { useClerk } from "@clerk/clerk-react";
 
@@ -19,10 +20,31 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
-  { label: "Home/Dashboard", to: "/admin", icon: Home },
-  { label: "List of Residents", to: "/admin/users", icon: Users },
-  { label: "Payment Status", to: "/admin/payments", icon: CreditCard },
-  { label: "Payment History", to: "/admin/payment-history", icon: BarChart3 },
+  {
+    label: "Home/Dashboard",
+    to: "/admin",
+    icon: Home,
+  },
+  {
+    label: "List of Residents",
+    to: "/admin/users",
+    icon: Users,
+  },
+  {
+    label: "Registration Requests",
+    to: "/admin/registration-requests",
+    icon: UserCheck,
+  },
+  {
+    label: "Payment Status",
+    to: "/admin/payments",
+    icon: CreditCard,
+  },
+  {
+    label: "Payment History",
+    to: "/admin/payment-history",
+    icon: BarChart3,
+  },
 ];
 
 export default function AdminLayout() {
