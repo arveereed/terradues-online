@@ -1,35 +1,37 @@
-import { Route, Routes, Navigate } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { useUser } from "@clerk/clerk-react";
+
 import OnboardScreen from "./pages/auth/OnboardScreen";
 import SignIn from "./pages/auth/SignIn";
 import ResidencySelection from "./pages/auth/ResidencySelection";
 import SignUpOwner from "./pages/auth/SignUpOwner";
 import SignUpRenter from "./pages/auth/SignUpRenter";
 import ForgotPassword from "./pages/auth/ForgotPassword";
+import RegistrationPendingPage from "./pages/auth/RegistrationPendingPage";
+import RegistrationDeniedPage from "./pages/auth/RegistrationDeniedPage";
+
 import AppLoader from "./components/AppLoader";
 import ErrorNotFound from "./pages/ErrorNotFound";
 
 import RequireAuth from "./routes/RequireAuth";
 import RequireGuest from "./routes/RequireGuest";
+
 import AdminLayout from "./pages/layouts/AdminLayout";
 import UserLayout from "./pages/layouts/UserLayout";
 
-// User Pages
+// User pages
 import HomePage from "./pages/user/HomePage";
 import PaymentHistoryPage from "./pages/user/PaymentHistoryPage";
 import NotificationPage from "./pages/user/NotificationPage";
 import SettingsPage from "./pages/user/SettingsPage";
 
-// Admin Pages
+// Admin pages
 import AdminHomePage from "./pages/admin/AdminHomePage";
 import AdminListOfResidentsPage from "./pages/admin/AdminListOfResidentsPage";
 import AdminPaymentStatusPage from "./pages/admin/AdminPaymentStatusPage";
 import AdminPaymentHistoryPage from "./pages/admin/AdminPaymentHistoryPage";
 import AdminRegistrationRequestsPage from "./pages/admin/AdminRegistrationRequestsPage";
-
-// Registration Approval Pages
-import RegistrationPendingPage from "./pages/auth/RegistrationPendingPage";
-import RegistrationDeniedPage from "./pages/auth/RegistrationDeniedPage";
+import AdminSummaryReportPage from "./pages/admin/AdminSummaryReportPage";
 
 import { useFirestoreUser } from "./features/auth/hooks/useFirestoreUser";
 
@@ -41,18 +43,22 @@ function App() {
   const adminEmail = import.meta.env.VITE_ADMIN_EMAIL as string | undefined;
 
   const isAdmin =
-    !!adminEmail && clerkUser?.emailAddresses[0].emailAddress === adminEmail;
+    Boolean(adminEmail) &&
+    clerkUser?.emailAddresses[0]?.emailAddress === adminEmail;
 
   const isGuest = !isSignedIn;
 
   /*
    * Backward compatibility:
    *
-   * Existing Firestore users created before this feature may not have
-   * approvalStatus. Those existing users are treated as approved.
+   * Existing Firestore users created before the
+   * registration approval feature may not have an
+   * approvalStatus field. Those users are treated as
+   * approved.
    *
-   * A signed-in non-admin account without a Firestore user document is
-   * treated as pending so it cannot access resident routes.
+   * A signed-in non-admin account without a Firestore
+   * user document is treated as pending so it cannot
+   * access approved resident routes.
    */
   const approvalStatus = firestoreUser
     ? (firestoreUser.approvalStatus ?? "approved")
@@ -139,14 +145,16 @@ function App() {
 
           <Route path="users" element={<AdminListOfResidentsPage />} />
 
-          <Route path="payments" element={<AdminPaymentStatusPage />} />
-
-          <Route path="payment-history" element={<AdminPaymentHistoryPage />} />
-
           <Route
             path="registration-requests"
             element={<AdminRegistrationRequestsPage />}
           />
+
+          <Route path="payments" element={<AdminPaymentStatusPage />} />
+
+          <Route path="payment-history" element={<AdminPaymentHistoryPage />} />
+
+          <Route path="summary-report" element={<AdminSummaryReportPage />} />
         </Route>
       </Route>
 

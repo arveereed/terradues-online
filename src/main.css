@@ -7,15 +7,38 @@
     ui-sans-serif,
     system-ui,
     -apple-system,
-    Segoe UI,
+    BlinkMacSystemFont,
+    "Segoe UI",
     Roboto,
     Helvetica,
     Arial,
     "Apple Color Emoji",
     "Segoe UI Emoji";
+
+  color: #18181b;
+  background: #fafafa;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
 }
 
-/* Make all interactive elements show pointer cursor */
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: #fafafa;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: #fafafa;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Make interactive elements use the expected cursor. */
 button,
 [role="button"],
 select,
@@ -29,11 +52,18 @@ input[type="button"],
   cursor: pointer;
 }
 
+button:disabled,
+select:disabled,
+input:disabled {
+  cursor: not-allowed;
+}
+
 /* Fade In */
 @keyframes fadeIn {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -49,6 +79,7 @@ input[type="button"],
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -66,4 +97,227 @@ input[type="button"],
 
 .delay-2 {
   animation-delay: 0.2s;
+}
+
+/*
+ * Hidden during normal browser viewing.
+ * The print media query overrides this for report-only details.
+ */
+.print-only {
+  display: none;
+}
+
+/*
+ * Summary Report printing
+ *
+ * Only the element with the ID summary-report-print-area is printed.
+ * The admin sidebar, mobile navigation, filters, buttons, feedback
+ * messages, and other unrelated interface elements remain hidden.
+ */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 10mm;
+  }
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+
+  body {
+    color: #18181b !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /*
+   * Hide every page element first while preserving the selected
+   * report area's descendants.
+   */
+  body * {
+    visibility: hidden !important;
+  }
+
+  #summary-report-print-area,
+  #summary-report-print-area * {
+    visibility: visible !important;
+  }
+
+  #summary-report-print-area {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .no-print {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  .print-only {
+    display: block !important;
+    visibility: visible !important;
+  }
+
+  /*
+   * Remove screen-only visual treatments that waste ink or produce
+   * inconsistent browser print output.
+   */
+  #summary-report-print-area,
+  #summary-report-print-area section,
+  #summary-report-print-area article,
+  #summary-report-print-area div {
+    box-shadow: none !important;
+  }
+
+  #summary-report-print-area section {
+    border-color: #d4d4d8 !important;
+  }
+
+  #summary-report-print-area .rounded-3xl,
+  #summary-report-print-area .rounded-2xl {
+    border-radius: 8px !important;
+  }
+
+  /*
+   * Prevent cards, headings, and totals from splitting across pages.
+   */
+  #summary-report-print-area article,
+  #summary-report-print-area h1,
+  #summary-report-print-area h2,
+  #summary-report-print-area h3,
+  #summary-report-print-area thead,
+  #summary-report-print-area tfoot {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  #summary-report-print-area table {
+    width: 100% !important;
+    min-width: 0 !important;
+    border-collapse: collapse !important;
+    table-layout: auto !important;
+  }
+
+  #summary-report-print-area thead {
+    display: table-header-group;
+  }
+
+  #summary-report-print-area tfoot {
+    display: table-footer-group;
+  }
+
+  #summary-report-print-area tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  #summary-report-print-area th,
+  #summary-report-print-area td {
+    padding: 5px 6px !important;
+    border: 1px solid #e4e4e7 !important;
+    font-size: 8.5pt !important;
+    line-height: 1.25 !important;
+  }
+
+  #summary-report-print-area th {
+    background: #ecfdf5 !important;
+    color: #14532d !important;
+    font-weight: 700 !important;
+  }
+
+  /*
+   * Tailwind's overflow wrappers are useful on screen but can clip
+   * wide tables when printed.
+   */
+  #summary-report-print-area .overflow-x-auto,
+  #summary-report-print-area .overflow-hidden {
+    overflow: visible !important;
+  }
+
+  /*
+   * Keep the six summary cards compact enough for landscape A4.
+   */
+  #summary-report-print-area [aria-label="Summary values"] {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  #summary-report-print-area [aria-label="Summary values"] article {
+    min-height: 0 !important;
+    padding: 10px !important;
+    border: 1px solid #d4d4d8 !important;
+  }
+
+  #summary-report-print-area
+    [aria-label="Summary values"]
+    article
+    > div:first-child {
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 8px !important;
+  }
+
+  #summary-report-print-area
+    [aria-label="Summary values"]
+    article
+    p:first-of-type {
+    font-size: 7.5pt !important;
+  }
+
+  #summary-report-print-area
+    [aria-label="Summary values"]
+    article
+    p:last-of-type {
+    font-size: 12pt !important;
+  }
+
+  /*
+   * Preserve important report colors in browsers that support
+   * print color adjustment.
+   */
+  #summary-report-print-area .bg-emerald-50,
+  #summary-report-print-area .bg-emerald-50\/60,
+  #summary-report-print-area .bg-emerald-50\/80 {
+    background-color: #ecfdf5 !important;
+  }
+
+  #summary-report-print-area .bg-red-50 {
+    background-color: #fef2f2 !important;
+  }
+
+  #summary-report-print-area .text-emerald-700,
+  #summary-report-print-area .text-emerald-900,
+  #summary-report-print-area .text-emerald-950 {
+    color: #047857 !important;
+  }
+
+  #summary-report-print-area .text-red-600,
+  #summary-report-print-area .text-red-700 {
+    color: #b91c1c !important;
+  }
+
+  #summary-report-print-area .text-amber-700 {
+    color: #b45309 !important;
+  }
+
+  /*
+   * Avoid printing raw hyperlink destinations beside text.
+   */
+  #summary-report-print-area a[href]::after {
+    content: none !important;
+  }
 }
