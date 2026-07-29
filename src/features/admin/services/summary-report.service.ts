@@ -1,4 +1,7 @@
-import { getAllUsersWithCurrentMonthPayments } from "../../auth/services/auth.service";
+import {
+  getApprovedResidentsWithCurrentMonthPayments,
+  isApprovedResidentUser,
+} from "../../auth/services/auth.service";
 import type { User } from "../../../types";
 
 import type {
@@ -48,10 +51,7 @@ const roundCurrency = (value: number) =>
   Math.round((value + Number.EPSILON) * 100) / 100;
 
 const isResidentUser = (user: User): user is ResidentUser =>
-  user.userType === "Owner" || user.userType === "Renter";
-
-const isApprovedResident = (user: ResidentUser) =>
-  !user.approvalStatus || user.approvalStatus === "approved";
+  isApprovedResidentUser(user);
 
 const getResidentMonthlyCharge = (user: ResidentUser) => {
   const paymentAmount = toNumber(
@@ -522,11 +522,10 @@ export const getSummaryReportSourceData =
      * Reuse the existing monthly initialization service so the current
      * month remains consistent with Payment Status and Payment History.
      */
-    const users = await getAllUsersWithCurrentMonthPayments();
+    const users = await getApprovedResidentsWithCurrentMonthPayments();
 
     const residents = users
       .filter(isResidentUser)
-      .filter(isApprovedResident)
       .map(toSummaryReportResident)
       .sort((first, second) =>
         first.fullName.localeCompare(second.fullName, "en", {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { useUser } from "@clerk/clerk-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import {
   AlertTriangle,
@@ -154,6 +155,7 @@ function RegistrationDocument({
 }
 
 export default function AdminRegistrationRequestsPage() {
+  const queryClient = useQueryClient();
   const { user: admin } = useUser();
 
   const [users, setUsers] = useState<User[]>([]);
@@ -265,6 +267,20 @@ export default function AdminRegistrationRequestsPage() {
 
         denialReason: reason,
       });
+
+      /**
+       * Approval changes which residents are included in the Dashboard and Summary
+       * Report. Mark those query results as stale immediately.
+       */
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["admin-dashboard-users"],
+        }),
+
+        queryClient.invalidateQueries({
+          queryKey: ["admin", "summary-report"],
+        }),
+      ]);
 
       setUsers((current) =>
         current.filter((user) => user.id !== confirm.user.id),

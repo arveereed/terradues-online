@@ -18,7 +18,8 @@ import {
 } from "lucide-react";
 import AppInput from "../../components/AppInput";
 import {
-  getAllUsersWithCurrentMonthPayments,
+  getApprovedResidentsWithCurrentMonthPayments,
+  isApprovedResidentUser,
   updateResidentPaymentForMonth,
 } from "../../features/auth/services/auth.service";
 import type { User } from "../../types";
@@ -334,7 +335,7 @@ const getPageNumbers = (currentPage: number, totalPages: number) => {
 };
 
 const isResidentUser = (user: User): user is ResidentUser =>
-  user.userType === "Owner" || user.userType === "Renter";
+  isApprovedResidentUser(user);
 
 const getStoredPaymentStatus = (user: User): PaymentStatus => {
   const paymentStatus = (user as { paymentStatus?: unknown }).paymentStatus;
@@ -409,7 +410,7 @@ export default function AdminPaymentStatusPage() {
     setDbError(null);
 
     try {
-      const users = await getAllUsersWithCurrentMonthPayments();
+      const users = await getApprovedResidentsWithCurrentMonthPayments();
 
       const residentRows = users
         .filter(isResidentUser)

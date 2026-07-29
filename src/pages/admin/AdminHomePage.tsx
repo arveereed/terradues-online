@@ -19,7 +19,10 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
-import { getAllUsersWithCurrentMonthPayments } from "../../features/auth/services/auth.service";
+import {
+  getApprovedResidentsWithCurrentMonthPayments,
+  isApprovedResidentUser,
+} from "../../features/auth/services/auth.service";
 import type { User } from "../../types";
 
 type PaymentStatus = "Paid" | "Not Paid";
@@ -63,7 +66,7 @@ const clean = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
 
 const isResidentUser = (user: User): user is ResidentUser =>
-  user.userType === "Owner" || user.userType === "Renter";
+  isApprovedResidentUser(user);
 
 const getManilaDate = () =>
   new Intl.DateTimeFormat("en-PH", {
@@ -178,8 +181,9 @@ export default function AdminHomePage() {
     isRefetching,
   } = useQuery({
     queryKey: ["admin-dashboard-users"],
-    queryFn: getAllUsersWithCurrentMonthPayments,
+    queryFn: getApprovedResidentsWithCurrentMonthPayments,
     staleTime: 1000 * 60 * 5,
+    refetchOnMount: "always",
   });
 
   const residents = useMemo(() => users.filter(isResidentUser), [users]);

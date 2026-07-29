@@ -375,8 +375,25 @@ const getPreviousRemainingBalance = (
   return previousRows[previousRows.length - 1].remainingBalance;
 };
 
-const isResidentPaymentUser = (user: User) =>
+/**
+ * Returns true for Firestore users whose account represents a resident.
+ *
+ * This does not automatically mean that the resident is active. Pending and
+ * denied registrations can still have an Owner or Renter userType.
+ */
+export const isResidentPaymentUser = (user: User) =>
   user.userType === "Owner" || user.userType === "Renter";
+
+/**
+ * The single source of truth for deciding whether a resident can participate
+ * in Dashboard statistics, payments, histories, and reports.
+ *
+ * Existing resident documents created before approvalStatus was introduced
+ * are treated as approved for backward compatibility.
+ */
+export const isApprovedResidentUser = (user: User) =>
+  isResidentPaymentUser(user) &&
+  (user.approvalStatus === undefined || user.approvalStatus === "approved");
 
 const getResidentMonthlyCharge = (user: User) => {
   const rawAmount =
@@ -526,7 +543,12 @@ export const getNotificationsByResidentId = async (residentId?: string) => {
 };
 
 export const ensureCurrentMonthPaymentRecord = async (resident: User) => {
-  if (!isResidentPaymentUser(resident)) return resident;
+  /**
+   * Pending and denied registrations must never enter the payment system.
+   */
+  if (!isApprovedResidentUser(resident)) {
+    return resident;
+  }
 
   const residentRef = doc(db, "users", resident.id);
   const { monthKey, monthLabel } = getPhilippinePaymentDate();
@@ -538,7 +560,21 @@ export const ensureCurrentMonthPaymentRecord = async (resident: User) => {
       throw new Error("Resident record was not found.");
     }
 
-    const residentData = residentSnap.data() as User;
+    const residentData: User = {
+      ...(residentSnap.data() as User),
+      id: resident.id,
+    };
+
+    /**
+     * Check again inside the transaction.
+     *
+     * The resident may have been denied or returned to pending after the function
+     * was called but before the transaction read the current Firestore document.
+     */
+    if (!isApprovedResidentUser(residentData)) {
+      return residentData;
+    }
+
     const monthlyCharge = getResidentMonthlyCharge(residentData);
 
     const rawHistory = Array.isArray(
@@ -619,17 +655,33 @@ export const ensureCurrentMonthPaymentRecord = async (resident: User) => {
   });
 };
 
-export const getAllUsersWithCurrentMonthPayments = async () => {
+/**
+ * Loads only active residents and ensures their current monthly payment record
+ * exists.
+ *
+ * Pending and denied residents are removed before payment initialization, so
+ * they cannot receive paymentHistory records or monthly notifications.
+ */
+export const getApprovedResidentsWithCurrentMonthPayments = async () => {
   const users = await getAllUsers();
 
+  const approvedResidents = users.filter(isApprovedResidentUser);
+
   return Promise.all(
-    users.map((user) =>
-      isResidentPaymentUser(user)
-        ? ensureCurrentMonthPaymentRecord(user)
-        : user,
+    approvedResidents.map((resident) =>
+      ensureCurrentMonthPaymentRecord(resident),
     ),
   );
 };
+
+/**
+ * Backward-compatible alias.
+ *
+ * Existing pages that still import getAllUsersWithCurrentMonthPayments will
+ * now also receive approved residents only.
+ */
+export const getAllUsersWithCurrentMonthPayments =
+  getApprovedResidentsWithCurrentMonthPayments;
 
 export const updateResidentPaymentForMonth = async ({
   residentId,
@@ -644,13 +696,34 @@ export const updateResidentPaymentForMonth = async ({
     throw new Error("Resident record was not found.");
   }
 
-  const residentData = residentSnap.data();
+  const residentData: User = {
+    ...(residentSnap.data() as User),
+    id: residentId,
+  };
+
+  /**
+   * Do not rely only on UI filtering.
+   *
+   * This service-level guard prevents any page or future caller from modifying
+   * payment data for a pending or denied resident.
+   */
+  if (!isApprovedResidentUser(residentData)) {
+    throw new Error(
+      "Payment records can only be updated for approved residents.",
+    );
+  }
+
   const { shortDate, monthKey, monthLabel } = getPhilippinePaymentDate();
 
-  const rawHistory = Array.isArray(residentData.paymentHistory)
-    ? residentData.paymentHistory
-    : Array.isArray(residentData.payments)
-      ? residentData.payments
+  const residentPaymentData = residentData as User & {
+    paymentHistory?: unknown;
+    payments?: unknown;
+  };
+
+  const rawHistory = Array.isArray(residentPaymentData.paymentHistory)
+    ? residentPaymentData.paymentHistory
+    : Array.isArray(residentPaymentData.payments)
+      ? residentPaymentData.payments
       : [];
 
   const normalizedHistory = normalizePaymentHistory(rawHistory, monthlyCharge);
