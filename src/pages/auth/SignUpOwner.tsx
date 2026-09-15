@@ -50,7 +50,6 @@ export default function SignUpOwner() {
     block: "",
     lot: "",
     familyMembers: "",
-    forRent: false,
     password: "",
     confirmPassword: "",
     picture: null,
@@ -647,8 +646,6 @@ export default function SignUpOwner() {
         lot: form.lot.trim(),
 
         familyMembers: form.familyMembers.trim(),
-
-        forRent: false,
 
         picture: imageUrl,
         document: docUrl,

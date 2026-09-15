@@ -2,6 +2,7 @@ import {
   addDoc,
   collection,
   doc,
+  deleteField,
   getDoc,
   getDocs,
   query,
@@ -813,6 +814,143 @@ export const updateResidentPaymentForMonth = async ({
     remainingBalance,
     paymentHistory: sortedPaymentHistory,
   };
+};
+
+export type AdminUpdateResidentPayload = {
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  contactNumber: string;
+  gender: string;
+  userType: "Owner" | "Renter";
+  phase: string;
+  block: string;
+  lot: string;
+  address: string;
+  familyMembers?: string;
+  ownerName?: string;
+  ownerContactNumber?: string;
+  ownerAddress?: string;
+  ownerNumberOccupants?: string;
+};
+
+export const updateResidentByAdmin = async (
+  docId: string,
+  payload: AdminUpdateResidentPayload,
+) => {
+  const userRef = doc(db, "users", docId);
+
+  const firstName = payload.firstName.trim();
+  const middleName = payload.middleName.trim();
+  const lastName = payload.lastName.trim();
+  const contactNumber = payload.contactNumber.trim();
+  const gender = payload.gender.trim();
+  const phase = payload.phase.trim();
+  const block = payload.block.trim();
+  const lot = payload.lot.trim();
+  const address = payload.address.trim();
+
+  const validateNameForAdmin = (
+    value: string,
+    label: string,
+    required = true,
+  ) => {
+    if (!value) {
+      if (required) throw new Error(`${label} is required.`);
+      return;
+    }
+    if (value.length < 2)
+      throw new Error(`${label} must be at least 2 characters.`);
+    if (!/^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/.test(value))
+      throw new Error(
+        `${label} can only contain letters, spaces, hyphens, and apostrophes.`,
+      );
+  };
+  const validateContactForAdmin = (value: string, label = "Contact number") => {
+    if (!value) throw new Error(`${label} is required.`);
+    if (!/^\d+$/.test(value))
+      throw new Error(`${label} must contain numbers only.`);
+    if (!/^09\d{9}$/.test(value))
+      throw new Error(
+        `${label} must be a valid 11-digit Philippine mobile number starting with 09.`,
+      );
+  };
+  const validateAddressNumberForAdmin = (value: string, label: string) => {
+    if (!value) throw new Error(`${label} is required.`);
+    if (!/^\d+$/.test(value))
+      throw new Error(`${label} must contain numbers only.`);
+    if (Number(value) <= 0) throw new Error(`${label} must be greater than 0.`);
+  };
+
+  validateNameForAdmin(firstName, "First name");
+  validateNameForAdmin(middleName, "Middle name", false);
+  validateNameForAdmin(lastName, "Last name");
+  validateContactForAdmin(contactNumber);
+  if (!gender) throw new Error("Gender is required.");
+  validateAddressNumberForAdmin(phase, "Phase");
+  validateAddressNumberForAdmin(block, "Block");
+  validateAddressNumberForAdmin(lot, "Lot");
+  if (!address) throw new Error("Address is required.");
+  if (payload.userType !== "Owner" && payload.userType !== "Renter")
+    throw new Error("User type must be Owner or Renter.");
+
+  const fullName = [firstName, middleName, lastName].filter(Boolean).join(" ");
+  const updates: Record<string, unknown> = {
+    firstName,
+    middleName,
+    lastName,
+    fullName,
+    contactNumber,
+    gender,
+    userType: payload.userType,
+    phase,
+    block,
+    lot,
+    address,
+    updatedAt: serverTimestamp(),
+  };
+
+  // Email is intentionally excluded. Admins cannot change authentication email here.
+  if (payload.userType === "Owner") {
+    const familyMembers = payload.familyMembers?.trim() ?? "";
+    if (!familyMembers)
+      throw new Error("Number of family members is required.");
+    if (!/^\d+$/.test(familyMembers))
+      throw new Error("Number of family members must contain numbers only.");
+    if (Number(familyMembers) < 1)
+      throw new Error("Number of family members must be at least 1.");
+    updates.familyMembers = familyMembers;
+    // Clear renter-only data when converting Renter -> Owner.
+    updates.ownerName = deleteField();
+    updates.ownerContactNumber = deleteField();
+    updates.ownerAddress = deleteField();
+    updates.ownerNumberOccupants = deleteField();
+  } else {
+    const ownerName = payload.ownerName?.trim() ?? "";
+    const ownerContactNumber = payload.ownerContactNumber?.trim() ?? "";
+    const ownerAddress = payload.ownerAddress?.trim() ?? "";
+    const ownerNumberOccupants = payload.ownerNumberOccupants?.trim() ?? "";
+    if (!ownerName) throw new Error("Owner's name is required.");
+    if (ownerName.length < 2 || !/^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/.test(ownerName))
+      throw new Error("Please enter a valid owner's name.");
+    if (!/^09\d{9}$/.test(ownerContactNumber))
+      throw new Error(
+        "Owner's contact number must be a valid 11-digit Philippine mobile number starting with 09.",
+      );
+    if (!ownerAddress) throw new Error("Owner's address is required.");
+    if (!/^\d+$/.test(ownerNumberOccupants) || Number(ownerNumberOccupants) < 1)
+      throw new Error("Number of occupants must be at least 1.");
+    updates.ownerName = ownerName;
+    updates.ownerContactNumber = ownerContactNumber;
+    updates.ownerAddress = ownerAddress;
+    updates.ownerNumberOccupants = ownerNumberOccupants;
+    // Clear owner-only data when converting Owner -> Renter.
+    updates.familyMembers = deleteField();
+    updates.forRent = deleteField();
+  }
+
+  await updateDoc(userRef, updates);
+  return updates;
 };
 
 export type UpdateUserProfilePayload = {

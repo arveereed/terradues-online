@@ -15,8 +15,6 @@ export type UserDataSignUpOwnerType = {
 
   familyMembers: string;
 
-  forRent: boolean;
-
   picture: string | null;
   document: string | null;
 

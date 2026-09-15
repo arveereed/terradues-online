@@ -7,6 +7,7 @@ import {
   Image as ImageIcon,
   Mail,
   MapPin,
+  Pencil,
   Phone,
   RefreshCw,
   Search,
@@ -15,7 +16,11 @@ import {
   X,
 } from "lucide-react";
 import AppInput from "../../components/AppInput";
-import { getAllUsers } from "../../features/auth/services/auth.service";
+import {
+  getAllUsers,
+  updateResidentByAdmin,
+  type AdminUpdateResidentPayload,
+} from "../../features/auth/services/auth.service";
 import type { User } from "../../types";
 
 type Resident = {
@@ -27,18 +32,21 @@ type Resident = {
   email?: string;
   gender?: string;
   userType: "Owner" | "Renter";
-  occupancyType: string;
   picture?: string | null;
   document?: string | null;
   phase: string;
   block: string;
   lot: string;
   address?: string;
+  familyMembers?: string;
+  ownerName?: string;
+  ownerContactNumber?: string;
+  ownerAddress?: string;
+  ownerNumberOccupants?: string;
 };
 
 type ResidentSourceUser = User & {
   userType: "Owner" | "Renter";
-  occupancyType?: unknown;
 };
 
 type FilePreviewType = "image" | "pdf" | "unsupported";
@@ -65,6 +73,11 @@ const formatLocationPart = (
   return `${label} ${trimmed}`;
 };
 
+const getRawLocationNumber = (
+  value: string,
+  label: "Phase" | "Block" | "Lot",
+) => clean(value).replace(new RegExp(`^${label}\\s+`, "i"), "");
+
 const isResidentUser = (user: User): user is ResidentSourceUser =>
   user.userType === "Owner" || user.userType === "Renter";
 
@@ -73,13 +86,22 @@ const getResidentName = (resident: Resident) =>
     .filter(Boolean)
     .join(" ");
 
-const getResidentLocation = (resident: Resident) =>
-  [resident.phase, resident.block, resident.lot].filter(Boolean).join(" / ");
+const getResidentLocation = (resident: Resident) => {
+  const block = formatLocationPart(resident.block, "Block");
+  const lot = formatLocationPart(resident.lot, "Lot");
+  const phase = formatLocationPart(resident.phase, "Phase");
 
-const getResidentAddress = (resident: Resident) =>
-  `${resident.block} ${resident.lot} ${resident.phase}` ||
-  getResidentLocation(resident) ||
-  "-";
+  return [block, lot, phase].filter(Boolean).join(" / ");
+};
+
+const getResidentAddress = (resident: Resident) => {
+  const block = formatLocationPart(resident.block, "Block");
+  const lot = formatLocationPart(resident.lot, "Lot");
+  const phase = formatLocationPart(resident.phase, "Phase");
+  const structuredAddress = [block, lot, phase].filter(Boolean).join(" ");
+
+  return structuredAddress || clean(resident.address) || "-";
+};
 
 const getInitials = (resident: Resident) => {
   const first = resident.firstName.charAt(0);
@@ -117,14 +139,6 @@ const getFilePreviewType = (url: string): FilePreviewType => {
   return "unsupported";
 };
 
-const getOccupancyType = (user: ResidentSourceUser) => {
-  if (Array.isArray(user.occupancyType) && user.occupancyType.length > 0) {
-    return user.occupancyType.filter(Boolean).map(String).join(", ");
-  }
-
-  return user.userType === "Renter" ? "Occupied" : "Not set";
-};
-
 const toResident = (user: ResidentSourceUser): Resident => ({
   id: user.id,
   firstName: clean(user.firstName),
@@ -134,13 +148,21 @@ const toResident = (user: ResidentSourceUser): Resident => ({
   email: clean(user.email),
   gender: clean(user.gender),
   userType: user.userType,
-  occupancyType: getOccupancyType(user),
   picture: user.picture,
   document: user.document,
-  phase: formatLocationPart(user.phase, "Phase"),
-  block: formatLocationPart(user.block, "Block"),
-  lot: formatLocationPart(user.lot, "Lot"),
+  // Keep Firestore's raw numeric location values in state.
+  // Labels such as Block/Lot/Phase are presentation only.
+  phase: clean(user.phase),
+  block: clean(user.block),
+  lot: clean(user.lot),
   address: clean(user.address),
+  familyMembers: "familyMembers" in user ? clean(user.familyMembers) : "",
+  ownerName: "ownerName" in user ? clean(user.ownerName) : "",
+  ownerContactNumber:
+    "ownerContactNumber" in user ? clean(user.ownerContactNumber) : "",
+  ownerAddress: "ownerAddress" in user ? clean(user.ownerAddress) : "",
+  ownerNumberOccupants:
+    "ownerNumberOccupants" in user ? clean(user.ownerNumberOccupants) : "",
 });
 
 const getPageNumbers = (currentPage: number, totalPages: number) => {
@@ -318,6 +340,23 @@ export default function AdminListOfResidentsPage() {
       title: `${getResidentName(resident) || "Resident"} - Document`,
       url,
     });
+  };
+
+  const saveResidentChanges = async (
+    residentId: string,
+    payload: AdminUpdateResidentPayload,
+  ) => {
+    await updateResidentByAdmin(residentId, payload);
+
+    setResidents((current) =>
+      current.map((resident) =>
+        resident.id === residentId ? { ...resident, ...payload } : resident,
+      ),
+    );
+
+    setSelectedResident((current) =>
+      current?.id === residentId ? { ...current, ...payload } : current,
+    );
   };
 
   return (
@@ -508,6 +547,7 @@ export default function AdminListOfResidentsPage() {
           onClose={() => setSelectedResident(null)}
           onViewValidId={() => openValidIdPreview(selectedResident)}
           onViewDocument={() => openDocumentPreview(selectedResident)}
+          onSave={saveResidentChanges}
         />
       )}
 
@@ -626,14 +666,214 @@ function ResidentDetailsModal({
   onClose,
   onViewValidId,
   onViewDocument,
+  onSave,
 }: {
   resident: Resident;
   onClose: () => void;
   onViewValidId: () => void;
   onViewDocument: () => void;
+  onSave: (
+    residentId: string,
+    payload: AdminUpdateResidentPayload,
+  ) => Promise<void>;
 }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [form, setForm] = useState<AdminUpdateResidentPayload>({
+    firstName: resident.firstName,
+    middleName: resident.middleName ?? "",
+    lastName: resident.lastName,
+    contactNumber: resident.contactNumber ?? "",
+    gender: resident.gender ?? "",
+    userType: resident.userType,
+    phase: getRawLocationNumber(resident.phase, "Phase"),
+    block: getRawLocationNumber(resident.block, "Block"),
+    lot: getRawLocationNumber(resident.lot, "Lot"),
+    address: resident.address ?? "",
+    familyMembers: resident.familyMembers ?? "",
+    ownerName: resident.ownerName ?? "",
+    ownerContactNumber: resident.ownerContactNumber ?? "",
+    ownerAddress: resident.ownerAddress ?? "",
+    ownerNumberOccupants: resident.ownerNumberOccupants ?? "",
+  });
+
+  useEffect(() => {
+    setForm({
+      firstName: resident.firstName,
+      middleName: resident.middleName ?? "",
+      lastName: resident.lastName,
+      contactNumber: resident.contactNumber ?? "",
+      gender: resident.gender ?? "",
+      userType: resident.userType,
+      phase: getRawLocationNumber(resident.phase, "Phase"),
+      block: getRawLocationNumber(resident.block, "Block"),
+      lot: getRawLocationNumber(resident.lot, "Lot"),
+      address: resident.address ?? "",
+      familyMembers: resident.familyMembers ?? "",
+      ownerName: resident.ownerName ?? "",
+      ownerContactNumber: resident.ownerContactNumber ?? "",
+      ownerAddress: resident.ownerAddress ?? "",
+      ownerNumberOccupants: resident.ownerNumberOccupants ?? "",
+    });
+  }, [resident]);
+
   const name = getResidentName(resident) || "Unnamed resident";
   const location = getResidentLocation(resident);
+
+  const setField = <K extends keyof AdminUpdateResidentPayload>(
+    field: K,
+    value: AdminUpdateResidentPayload[K],
+  ) => {
+    setSaveError(null);
+    setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const cancelEditing = () => {
+    setForm({
+      firstName: resident.firstName,
+      middleName: resident.middleName ?? "",
+      lastName: resident.lastName,
+      contactNumber: resident.contactNumber ?? "",
+      gender: resident.gender ?? "",
+      userType: resident.userType,
+      phase: getRawLocationNumber(resident.phase, "Phase"),
+      block: getRawLocationNumber(resident.block, "Block"),
+      lot: getRawLocationNumber(resident.lot, "Lot"),
+      address: resident.address ?? "",
+      familyMembers: resident.familyMembers ?? "",
+      ownerName: resident.ownerName ?? "",
+      ownerContactNumber: resident.ownerContactNumber ?? "",
+      ownerAddress: resident.ownerAddress ?? "",
+      ownerNumberOccupants: resident.ownerNumberOccupants ?? "",
+    });
+    setSaveError(null);
+    setIsEditing(false);
+  };
+
+  // These validators intentionally mirror SignUpOwner.tsx / SignUpRenter.tsx.
+  const validateName = (value: string, label: string, required = true) => {
+    const trimmed = value.trim();
+    if (!trimmed) return required ? `${label} is required` : "";
+    if (trimmed.length < 2) return `${label} must be at least 2 characters`;
+    if (!/^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/.test(trimmed))
+      return `${label} can only contain letters, spaces, hyphens, and apostrophes`;
+    return "";
+  };
+
+  const validateContactNumber = (value: string) => {
+    const contact = value.trim();
+    if (!contact) return "Contact number is required";
+    if (!/^\d+$/.test(contact))
+      return "Contact number must contain numbers only";
+    if (contact.length >= 1 && contact[0] !== "0")
+      return "Contact number must start with 09";
+    if (contact.length >= 2 && !contact.startsWith("09"))
+      return "Contact number must start with 09";
+    if (contact.length < 11) {
+      const remaining = 11 - contact.length;
+      return `Contact number needs ${remaining} more digit${remaining === 1 ? "" : "s"}`;
+    }
+    if (contact.length > 11) return "Contact number must be exactly 11 digits";
+    if (!/^09\d{9}$/.test(contact))
+      return "Please enter a valid Philippine mobile number";
+    return "";
+  };
+
+  const validateAddressNumber = (value: string, label: string) => {
+    const trimmed = value.trim().replace(new RegExp(`^${label}\\s+`, "i"), "");
+    if (!trimmed) return `${label} is required`;
+    if (!/^\d+$/.test(trimmed)) return `${label} must contain numbers only`;
+    if (Number(trimmed) <= 0) return `${label} must be greater than 0`;
+    return "";
+  };
+
+  const validateFamilyMembers = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return "Number of family members is required";
+    if (!/^\d+$/.test(trimmed))
+      return "Number of family members must contain numbers only";
+    if (Number(trimmed) < 1)
+      return "Number of family members must be at least 1";
+    return "";
+  };
+
+  const validateOwnerAddress = (value: string) =>
+    value.trim() ? "" : "Owner's address is required";
+
+  const validateOccupants = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return "Number of occupants is required";
+    if (!/^\d+$/.test(trimmed))
+      return "Number of occupants must contain numbers only";
+    if (Number(trimmed) < 1) return "Number of occupants must be at least 1";
+    return "";
+  };
+
+  const fieldErrors = {
+    firstName: validateName(form.firstName, "First name", true),
+    middleName: validateName(form.middleName, "Middle name", false),
+    lastName: validateName(form.lastName, "Last name", true),
+    gender: form.gender ? "" : "Gender is required",
+    contactNumber: validateContactNumber(form.contactNumber),
+    phase: validateAddressNumber(form.phase, "Phase"),
+    block: validateAddressNumber(form.block, "Block"),
+    lot: validateAddressNumber(form.lot, "Lot"),
+    familyMembers:
+      form.userType === "Owner"
+        ? validateFamilyMembers(form.familyMembers ?? "")
+        : "",
+    ownerName:
+      form.userType === "Renter"
+        ? validateName(form.ownerName ?? "", "Owner's name", true)
+        : "",
+    ownerContactNumber:
+      form.userType === "Renter"
+        ? validateContactNumber(form.ownerContactNumber ?? "")
+        : "",
+    ownerAddress:
+      form.userType === "Renter"
+        ? validateOwnerAddress(form.ownerAddress ?? "")
+        : "",
+    ownerNumberOccupants:
+      form.userType === "Renter"
+        ? validateOccupants(form.ownerNumberOccupants ?? "")
+        : "",
+  };
+
+  const formIsValid = Object.values(fieldErrors).every((error) => !error);
+  const validationMessage = (
+    error: string,
+    value: string,
+    success = "Valid",
+  ) =>
+    error ? (
+      <p className="mt-1 text-xs font-semibold text-rose-600">{error}</p>
+    ) : value.trim() ? (
+      <p className="mt-1 text-xs font-semibold text-emerald-600">{success}</p>
+    ) : null;
+
+  const handleSave = async () => {
+    if (!formIsValid) {
+      setSaveError(
+        "Please correct the required registration details before saving.",
+      );
+      return;
+    }
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await onSave(resident.id, form);
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Failed to update resident:", error);
+      setSaveError(
+        error instanceof Error ? error.message : "Failed to update resident.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div
@@ -651,10 +891,8 @@ function ResidentDetailsModal({
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">
               Resident Details
             </p>
-
             <h2 className="mt-1 text-lg font-semibold text-zinc-950">{name}</h2>
           </div>
-
           <button
             type="button"
             onClick={onClose}
@@ -678,12 +916,10 @@ function ResidentDetailsModal({
                 <UserRound size={34} />
               )}
             </div>
-
             <div className="min-w-0 flex-1">
               <h3 className="text-2xl font-bold tracking-tight text-zinc-950">
                 {name}
               </h3>
-
               <div className="mt-3 flex flex-wrap gap-2">
                 <Badge
                   value={resident.userType}
@@ -693,13 +929,7 @@ function ResidentDetailsModal({
                       : "bg-blue-50 text-blue-700 ring-blue-100"
                   }
                 />
-
-                <Badge
-                  value={resident.occupancyType}
-                  className="bg-zinc-100 text-zinc-600 ring-zinc-200"
-                />
               </div>
-
               {location && (
                 <p className="mt-3 flex items-center gap-2 text-sm font-medium text-zinc-500">
                   <MapPin size={16} />
@@ -709,66 +939,356 @@ function ResidentDetailsModal({
             </div>
           </div>
 
-          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <DetailItem label="First Name" value={resident.firstName || "-"} />
-            <DetailItem
-              label="Middle Name"
-              value={resident.middleName || "-"}
-            />
-            <DetailItem label="Last Name" value={resident.lastName || "-"} />
-            <DetailItem label="Gender" value={resident.gender || "-"} />
+          {saveError && (
+            <div className="mt-5 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
+              {saveError}
+            </div>
+          )}
 
-            <DetailItem
-              icon={<Phone size={15} />}
-              label="Contact Number"
-              value={resident.contactNumber || "-"}
-            />
+          {isEditing ? (
+            <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <AppInput
+                  label="First Name"
+                  value={form.firstName}
+                  onChange={(e) => setField("firstName", e.target.value)}
+                />
+                {validationMessage(
+                  fieldErrors.firstName,
+                  form.firstName,
+                  "Valid first name",
+                )}
+              </div>
+              <div>
+                <AppInput
+                  label="Middle Name"
+                  value={form.middleName}
+                  onChange={(e) => setField("middleName", e.target.value)}
+                />
+                {validationMessage(
+                  fieldErrors.middleName,
+                  form.middleName,
+                  "Valid middle name",
+                )}
+              </div>
+              <div>
+                <AppInput
+                  label="Last Name"
+                  value={form.lastName}
+                  onChange={(e) => setField("lastName", e.target.value)}
+                />
+                {validationMessage(
+                  fieldErrors.lastName,
+                  form.lastName,
+                  "Valid last name",
+                )}
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-zinc-700">
+                  Gender
+                </label>
+                <select
+                  value={form.gender}
+                  onChange={(e) => setField("gender", e.target.value)}
+                  className="h-12 w-full rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-900 outline-none focus:border-emerald-500"
+                >
+                  <option value="">Select gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+                {validationMessage(
+                  fieldErrors.gender,
+                  form.gender,
+                  "Gender selected",
+                )}
+              </div>
+              <div>
+                <AppInput
+                  label="Contact Number"
+                  value={form.contactNumber}
+                  onChange={(e) =>
+                    setField("contactNumber", e.target.value.replace(/\D/g, ""))
+                  }
+                />
+                {validationMessage(
+                  fieldErrors.contactNumber,
+                  form.contactNumber,
+                  "Valid Philippine mobile number",
+                )}
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-zinc-700">
+                  Email
+                </label>
+                <input
+                  value={resident.email || ""}
+                  disabled
+                  readOnly
+                  className="h-12 w-full cursor-not-allowed rounded-xl border border-zinc-200 bg-zinc-100 px-4 text-sm font-medium text-zinc-500"
+                />
+                <p className="mt-1 text-xs font-medium text-zinc-500">
+                  Email cannot be changed by an admin.
+                </p>
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-zinc-700">
+                  User Type
+                </label>
+                <select
+                  value={form.userType}
+                  onChange={(e) =>
+                    setField("userType", e.target.value as "Owner" | "Renter")
+                  }
+                  className="h-12 w-full rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-900 outline-none focus:border-emerald-500"
+                >
+                  <option value="Owner">Owner</option>
+                  <option value="Renter">Renter</option>
+                </select>
+              </div>
+              <div>
+                <AppInput
+                  label="Phase"
+                  value={form.phase}
+                  onChange={(e) =>
+                    setField("phase", e.target.value.replace(/\D/g, ""))
+                  }
+                />
+                {validationMessage(
+                  fieldErrors.phase,
+                  form.phase,
+                  "Valid phase",
+                )}
+              </div>
+              <div>
+                <AppInput
+                  label="Block"
+                  value={form.block}
+                  onChange={(e) =>
+                    setField("block", e.target.value.replace(/\D/g, ""))
+                  }
+                />
+                {validationMessage(
+                  fieldErrors.block,
+                  form.block,
+                  "Valid block",
+                )}
+              </div>
+              <div>
+                <AppInput
+                  label="Lot"
+                  value={form.lot}
+                  onChange={(e) =>
+                    setField("lot", e.target.value.replace(/\D/g, ""))
+                  }
+                />
+                {validationMessage(fieldErrors.lot, form.lot, "Valid lot")}
+              </div>
 
-            <DetailItem
-              icon={<Mail size={15} />}
-              label="Email"
-              value={resident.email || "-"}
-            />
-
-            <DetailItem label="User Type" value={resident.userType} />
-            <DetailItem label="Occupancy Type" value={resident.occupancyType} />
-            <DetailItem label="Phase" value={resident.phase || "-"} />
-            <DetailItem label="Block" value={resident.block || "-"} />
-            <DetailItem label="Lot" value={resident.lot || "-"} />
-
-            <DetailItem
-              label="Address"
-              value={resident.address || location || "-"}
-              className="sm:col-span-2"
-            />
-          </div>
+              {form.userType === "Owner" ? (
+                <div className="sm:col-span-2 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
+                  <h4 className="text-sm font-bold text-emerald-900">
+                    Owner Registration Details
+                  </h4>
+                  <p className="mb-3 mt-1 text-xs font-medium text-emerald-700">
+                    Required when the resident is an Owner.
+                  </p>
+                  <AppInput
+                    label="Number of Family Members"
+                    value={form.familyMembers ?? ""}
+                    onChange={(e) =>
+                      setField(
+                        "familyMembers",
+                        e.target.value.replace(/\D/g, ""),
+                      )
+                    }
+                  />
+                  {validationMessage(
+                    fieldErrors.familyMembers,
+                    form.familyMembers ?? "",
+                    "Valid number of family members",
+                  )}
+                </div>
+              ) : (
+                <div className="sm:col-span-2 rounded-2xl border border-blue-200 bg-blue-50/50 p-4">
+                  <h4 className="text-sm font-bold text-blue-900">
+                    Homeowner Details
+                  </h4>
+                  <p className="mb-3 mt-1 text-xs font-medium text-blue-700">
+                    Required when the resident is a Renter.
+                  </p>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <AppInput
+                        label="Owner's Full Name"
+                        value={form.ownerName ?? ""}
+                        onChange={(e) => setField("ownerName", e.target.value)}
+                      />
+                      {validationMessage(
+                        fieldErrors.ownerName,
+                        form.ownerName ?? "",
+                        "Valid owner name",
+                      )}
+                    </div>
+                    <div>
+                      <AppInput
+                        label="Owner's Contact Number"
+                        value={form.ownerContactNumber ?? ""}
+                        onChange={(e) =>
+                          setField(
+                            "ownerContactNumber",
+                            e.target.value.replace(/\D/g, ""),
+                          )
+                        }
+                      />
+                      {validationMessage(
+                        fieldErrors.ownerContactNumber,
+                        form.ownerContactNumber ?? "",
+                        "Valid Philippine mobile number",
+                      )}
+                    </div>
+                    <div>
+                      <AppInput
+                        label="Owner's Address"
+                        value={form.ownerAddress ?? ""}
+                        onChange={(e) =>
+                          setField("ownerAddress", e.target.value)
+                        }
+                      />
+                      {validationMessage(
+                        fieldErrors.ownerAddress,
+                        form.ownerAddress ?? "",
+                        "Valid owner address",
+                      )}
+                    </div>
+                    <div>
+                      <AppInput
+                        label="Number of Occupants"
+                        value={form.ownerNumberOccupants ?? ""}
+                        onChange={(e) =>
+                          setField(
+                            "ownerNumberOccupants",
+                            e.target.value.replace(/\D/g, ""),
+                          )
+                        }
+                      />
+                      {validationMessage(
+                        fieldErrors.ownerNumberOccupants,
+                        form.ownerNumberOccupants ?? "",
+                        "Valid number of occupants",
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <DetailItem
+                label="First Name"
+                value={resident.firstName || "-"}
+              />
+              <DetailItem
+                label="Middle Name"
+                value={resident.middleName || "-"}
+              />
+              <DetailItem label="Last Name" value={resident.lastName || "-"} />
+              <DetailItem label="Gender" value={resident.gender || "-"} />
+              <DetailItem
+                icon={<Phone size={15} />}
+                label="Contact Number"
+                value={resident.contactNumber || "-"}
+              />
+              <DetailItem
+                icon={<Mail size={15} />}
+                label="Email"
+                value={resident.email || "-"}
+              />
+              <DetailItem label="User Type" value={resident.userType} />
+              <DetailItem label="Phase" value={resident.phase || "-"} />
+              <DetailItem label="Block" value={resident.block || "-"} />
+              <DetailItem label="Lot" value={resident.lot || "-"} />
+              {resident.userType === "Owner" ? (
+                <DetailItem
+                  label="Number of Family Members"
+                  value={resident.familyMembers || "-"}
+                  className="sm:col-span-2"
+                />
+              ) : (
+                <>
+                  <div className="sm:col-span-2 mt-2">
+                    <h4 className="text-sm font-bold text-zinc-900">
+                      Homeowner Details
+                    </h4>
+                  </div>
+                  <DetailItem
+                    label="Owner's Full Name"
+                    value={resident.ownerName || "-"}
+                  />
+                  <DetailItem
+                    label="Owner's Contact Number"
+                    value={resident.ownerContactNumber || "-"}
+                  />
+                  <DetailItem
+                    label="Owner's Address"
+                    value={resident.ownerAddress || "-"}
+                  />
+                  <DetailItem
+                    label="Number of Occupants"
+                    value={resident.ownerNumberOccupants || "-"}
+                  />
+                </>
+              )}
+            </div>
+          )}
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex h-11 items-center justify-center rounded-xl bg-zinc-100 px-5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-200"
-            >
-              Close
-            </button>
-
-            <button
-              type="button"
-              onClick={onViewValidId}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white transition hover:bg-emerald-700"
-            >
-              <ImageIcon size={17} />
-              {resident.picture ? "View Valid ID" : "No Valid ID Uploaded"}
-            </button>
-
-            <button
-              type="button"
-              onClick={onViewDocument}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-5 text-sm font-semibold text-white transition hover:bg-black"
-            >
-              <FileText size={17} />
-              {resident.document ? "View Document" : "No Document Uploaded"}
-            </button>
+            {isEditing ? (
+              <>
+                <button
+                  type="button"
+                  onClick={cancelEditing}
+                  disabled={isSaving}
+                  className="inline-flex h-11 items-center justify-center rounded-xl bg-zinc-100 px-5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-200 disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSave()}
+                  disabled={isSaving || !formIsValid}
+                  className="inline-flex h-11 items-center justify-center rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSaving ? "Saving..." : "Save Changes"}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(true)}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-700"
+                >
+                  <Pencil size={17} />
+                  Edit Details
+                </button>
+                <button
+                  type="button"
+                  onClick={onViewValidId}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                >
+                  <ImageIcon size={17} />
+                  {resident.picture ? "View Valid ID" : "No Valid ID Uploaded"}
+                </button>
+                <button
+                  type="button"
+                  onClick={onViewDocument}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-5 text-sm font-semibold text-white transition hover:bg-black"
+                >
+                  <FileText size={17} />
+                  {resident.document ? "View Document" : "No Document Uploaded"}
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
