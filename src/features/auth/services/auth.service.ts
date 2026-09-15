@@ -23,27 +23,42 @@ import { db } from "../../../lib/firebase/firebase";
 export const addUser = async (
   userData: UserDataSignUpOwnerType | UserDataSignUpRenterType,
 ) => {
-  /*
-   * Use the Clerk user ID as the Firestore document ID.
-   *
-   * This prevents duplicate Firestore user records for the same
-   * Clerk account.
-   */
-  const userRef = doc(db, "users", userData.user_id);
-  const existing = await getDoc(userRef);
+  try {
+    if (!userData.user_id) {
+      throw new Error("Cannot create Firestore resident: user_id is missing.");
+    }
 
-  if (existing.exists()) {
+    const userRef = doc(db, "users", userData.user_id);
+
+    const existing = await getDoc(userRef);
+
+    if (existing.exists()) {
+      console.log("Firestore resident already exists:", userRef.id);
+
+      return userRef.id;
+    }
+
+    await setDoc(userRef, {
+      ...userData,
+
+      role: "resident",
+
+      // This is what makes the resident appear
+      // in Admin Registration Requests.
+      approvalStatus: "pending",
+
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+
+    console.log("Firestore resident created successfully:", userRef.id);
+
     return userRef.id;
+  } catch (error) {
+    console.error("FAILED TO CREATE FIRESTORE RESIDENT:", error);
+
+    throw error;
   }
-
-  await setDoc(userRef, {
-    ...userData,
-    role: "resident",
-    approvalStatus: "pending",
-    createdAt: Timestamp.now(),
-  });
-
-  return userRef.id;
 };
 
 export const getUserById = async (userId: string | undefined) => {
@@ -828,7 +843,6 @@ export type ResubmitDeniedRegistrationPayload = {
   document?: string;
 
   familyMembers?: string;
-  occupancyType?: string[];
   forRent?: boolean;
 
   ownerName?: string;
@@ -903,14 +917,6 @@ export const resubmitDeniedRegistration = async (
     throw new Error("A valid government ID image is required.");
   }
 
-  if (!finalDocument) {
-    throw new Error(
-      userData.userType === "Renter"
-        ? "A house lease agreement document is required."
-        : "A house turnover document is required.",
-    );
-  }
-
   const commonUpdates = {
     firstName,
     middleName,
@@ -945,15 +951,9 @@ export const resubmitDeniedRegistration = async (
       throw new Error("Family members must contain numbers only.");
     }
 
-    if (!payload.occupancyType?.length) {
-      throw new Error("Select at least one occupancy type.");
-    }
-
     await updateDoc(userRef, {
       ...commonUpdates,
       familyMembers,
-      occupancyType: payload.occupancyType,
-      forRent: Boolean(payload.forRent),
     });
   } else {
     const ownerName = payload.ownerName?.trim() ?? "";
@@ -1011,8 +1011,6 @@ export const resubmitDeniedRegistration = async (
   return {
     ...commonUpdates,
     familyMembers: payload.familyMembers,
-    occupancyType: payload.occupancyType,
-    forRent: payload.forRent,
     ownerName: payload.ownerName,
     ownerContactNumber: payload.ownerContactNumber,
     ownerAddress: payload.ownerAddress,

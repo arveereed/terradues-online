@@ -37,7 +37,7 @@ const isNumberOnlyField = (name: string): name is NumberOnlyField =>
 
 const numbersOnly = (value: string) => value.replace(/\D/g, "");
 
-export default function SignUpOwner() {
+export default function SignUpRenter() {
   const [errors, setErrors] = useState<FormErrors>({});
 
   const [form, setForm] = useState<RenterSignUpFormData>({
@@ -80,6 +80,9 @@ export default function SignUpOwner() {
   const [error, setError] = useState<string>("");
 
   const navigate = useNavigate();
+  const handleBack = () => {
+    navigate(-1);
+  };
 
   const isImageFile = (file: File) => file.type.startsWith("image/");
 
@@ -98,111 +101,143 @@ export default function SignUpOwner() {
     );
   };
 
+  const validateContactNumber = (value: string): string => {
+    const contactNumber = value.trim();
+    if (!contactNumber) return "Contact number is required";
+    if (!/^\d+$/.test(contactNumber))
+      return "Contact number must contain numbers only";
+    if (contactNumber.length >= 1 && contactNumber[0] !== "0")
+      return "Contact number must start with 09";
+    if (contactNumber.length >= 2 && !contactNumber.startsWith("09"))
+      return "Contact number must start with 09";
+    if (contactNumber.length < 11) {
+      const remaining = 11 - contactNumber.length;
+      return `Contact number needs ${remaining} more digit${remaining === 1 ? "" : "s"}`;
+    }
+    if (contactNumber.length > 11)
+      return "Contact number must be exactly 11 digits";
+    if (!/^09\d{9}$/.test(contactNumber))
+      return "Please enter a valid Philippine mobile number";
+    return "";
+  };
+
+  const validatePassword = (value: string): string => {
+    if (!value) return "Password is required";
+    if (value.length < 8)
+      return `Password needs ${8 - value.length} more character${8 - value.length === 1 ? "" : "s"}`;
+    if (!/[A-Z]/.test(value)) return "Add at least 1 uppercase letter";
+    if (!/[a-z]/.test(value)) return "Add at least 1 lowercase letter";
+    if (!/\d/.test(value)) return "Add at least 1 number";
+    if (!/[^\w\s]/.test(value)) return "Add at least 1 special character";
+    return "";
+  };
+
+  const validateConfirmPassword = (
+    confirmPassword: string,
+    password: string,
+  ): string => {
+    if (!confirmPassword) return "Please confirm your password";
+    if (confirmPassword !== password) return "Passwords do not match";
+    return "";
+  };
+
+  const validateName = (
+    value: string,
+    fieldLabel: string,
+    required = true,
+  ): string => {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) return required ? `${fieldLabel} is required` : "";
+    if (trimmedValue.length < 2)
+      return `${fieldLabel} must be at least 2 characters`;
+    if (!/^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/.test(trimmedValue))
+      return `${fieldLabel} can only contain letters, spaces, hyphens, and apostrophes`;
+    return "";
+  };
+
+  const validateAddressNumber = (value: string, fieldLabel: string): string => {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) return `${fieldLabel} is required`;
+    if (!/^\d+$/.test(trimmedValue))
+      return `${fieldLabel} must contain numbers only`;
+    if (Number(trimmedValue) <= 0)
+      return `${fieldLabel} must be greater than 0`;
+    return "";
+  };
+
+  const validateOwnerAddress = (value: string): string =>
+    value.trim() ? "" : "Owner's address is required";
+
+  const validateOccupants = (value: string): string => {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) return "Number of occupants is required";
+    if (!/^\d+$/.test(trimmedValue))
+      return "Number of occupants must contain numbers only";
+    if (Number(trimmedValue) < 1)
+      return "Number of occupants must be at least 1";
+    return "";
+  };
+
   const validateForm = () => {
     const errors: FormErrors = {};
 
-    if (!form.firstName.trim()) errors.firstName = "First name is required";
-    if (!form.lastName.trim()) errors.lastName = "Last name is required";
+    const firstNameError = validateName(form.firstName, "First name", true);
+    const middleNameError = validateName(form.middleName, "Middle name", false);
+    const lastNameError = validateName(form.lastName, "Last name", true);
+    const contactNumberError = validateContactNumber(form.contactNumber);
+    const phaseError = validateAddressNumber(form.phase, "Phase");
+    const blockError = validateAddressNumber(form.block, "Block");
+    const lotError = validateAddressNumber(form.lot, "Lot");
+    const ownerNameError = validateName(form.ownerName, "Owner's name", true);
+    const ownerContactNumberError = validateContactNumber(
+      form.ownerContactNumber,
+    );
+    const ownerAddressError = validateOwnerAddress(form.ownerAddress);
+    const occupantsError = validateOccupants(form.ownerNumberOccupants);
+    const passwordError = validatePassword(form.password);
+    const confirmPasswordError = validateConfirmPassword(
+      form.confirmPassword,
+      form.password,
+    );
 
-    if (!form.contactNumber.trim()) {
-      errors.contactNumber = "Contact number is required";
-    } else if (!/^\d{10,11}$/.test(form.contactNumber)) {
-      errors.contactNumber = "Contact number must be 10–11 digits";
-    }
+    if (firstNameError) errors.firstName = firstNameError;
+    if (middleNameError) errors.middleName = middleNameError;
+    if (lastNameError) errors.lastName = lastNameError;
+    if (contactNumberError) errors.contactNumber = contactNumberError;
 
-    if (!form.email.trim()) {
-      errors.email = "Email is required";
-    } else if (!/^\S+@\S+\.\S+$/.test(form.email)) {
+    if (!form.email.trim()) errors.email = "Email is required";
+    else if (!/^\S+@\S+\.\S+$/.test(form.email))
       errors.email = "Invalid email address";
-    }
 
     if (!form.gender) errors.gender = "Gender is required";
+    if (phaseError) errors.phase = phaseError;
+    if (blockError) errors.block = blockError;
+    if (lotError) errors.lot = lotError;
+    if (ownerNameError) errors.ownerName = ownerNameError;
+    if (ownerContactNumberError)
+      errors.ownerContactNumber = ownerContactNumberError;
+    if (ownerAddressError) errors.ownerAddress = ownerAddressError;
+    if (occupantsError) errors.ownerNumberOccupants = occupantsError;
+    if (passwordError) errors.password = passwordError;
+    if (confirmPasswordError) errors.confirmPassword = confirmPasswordError;
 
-    if (!form.phase.trim()) {
-      errors.phase = "Phase is required";
-    } else if (!/^\d+$/.test(form.phase)) {
-      errors.phase = "Phase must contain numbers only";
-    }
-
-    if (!form.block.trim()) {
-      errors.block = "Block is required";
-    } else if (!/^\d+$/.test(form.block)) {
-      errors.block = "Block must contain numbers only";
-    }
-
-    if (!form.lot.trim()) {
-      errors.lot = "Lot is required";
-    } else if (!/^\d+$/.test(form.lot)) {
-      errors.lot = "Lot must contain numbers only";
-    }
-
-    if (!form.ownerAddress.trim()) {
-      errors.ownerAddress = "Owner's address is required";
-    }
-
-    if (!form.ownerContactNumber.trim()) {
-      errors.ownerContactNumber = "Owner's contact number is required";
-    } else if (!/^\d{10,11}$/.test(form.ownerContactNumber)) {
-      errors.ownerContactNumber = "Owner's contact number must be 10–11 digits";
-    }
-
-    if (!form.ownerName.trim()) {
-      errors.ownerName = "Owner's name is required";
-    }
-
-    if (!form.ownerNumberOccupants.trim()) {
-      errors.ownerNumberOccupants = "Number of occupants is required";
-    } else if (!/^\d+$/.test(form.ownerNumberOccupants)) {
-      errors.ownerNumberOccupants =
-        "Number of occupants must contain numbers only";
-    }
-
-    if (!form.password) {
-      errors.password = "Password is required";
-    } else {
-      const pwd = form.password;
-
-      if (pwd.length < 8) {
-        errors.password = "Password must be at least 8 characters";
-      } else if (!/[A-Z]/.test(pwd)) {
-        errors.password = "Add at least 1 uppercase letter";
-      } else if (!/[a-z]/.test(pwd)) {
-        errors.password = "Add at least 1 lowercase letter";
-      } else if (!/\d/.test(pwd)) {
-        errors.password = "Add at least 1 number";
-      } else if (!/[^\w\s]/.test(pwd)) {
-        errors.password = "Add at least 1 special character";
-      }
-    }
-
-    if (!form.confirmPassword) {
-      errors.confirmPassword = "Please confirm your password";
-    } else if (form.confirmPassword !== form.password) {
-      errors.confirmPassword = "Passwords do not match";
-    }
-
-    if (!form.picture) {
-      errors.picture = "Picture is required";
-    } else if (!isImageFile(form.picture)) {
+    if (!form.picture) errors.picture = "Picture is required";
+    else if (!isImageFile(form.picture))
       errors.picture = "Please upload a valid image file";
-    }
 
-    if (!form.document) {
-      errors.document = "Document is required";
-    } else if (!isAllowedDocument(form.document)) {
+    // House Lease Agreement Document is optional.
+    if (form.document && !isAllowedDocument(form.document)) {
       errors.document = "Document must be PDF, DOC, or DOCX";
     }
 
     const MAX_IMAGE_MB = 5;
     const MAX_DOC_MB = 10;
 
-    if (form.picture && form.picture.size > MAX_IMAGE_MB * 1024 * 1024) {
+    if (form.picture && form.picture.size > MAX_IMAGE_MB * 1024 * 1024)
       errors.picture = `Image must be less than ${MAX_IMAGE_MB}MB`;
-    }
 
-    if (form.document && form.document.size > MAX_DOC_MB * 1024 * 1024) {
+    if (form.document && form.document.size > MAX_DOC_MB * 1024 * 1024)
       errors.document = `Document must be less than ${MAX_DOC_MB}MB`;
-    }
 
     setErrors(errors);
     return Object.keys(errors).length === 0;
@@ -250,71 +285,166 @@ export default function SignUpOwner() {
   const onVerifyPress = async () => {
     if (!isLoaded) return;
 
+    const verificationCode = code.trim();
+
+    if (!verificationCode) {
+      setError("Enter the verification code.");
+      return;
+    }
+
     setIsLoading(true);
+    setError("");
 
     try {
+      /*
+       * IMPORTANT:
+       * Keep the same Clerk signUp object alive from:
+       * signUp.create()
+       * -> prepareEmailAddressVerification()
+       * -> attemptEmailAddressVerification()
+       *
+       * Do not navigate, reload, recreate the signup, or call setActive()
+       * before the Firestore registration has been saved.
+       */
       const signUpAttempt = await signUp.attemptEmailAddressVerification({
-        code,
+        code: verificationCode,
       });
 
-      if (signUpAttempt.status === "complete") {
-        await setActive({ session: signUpAttempt.createdSessionId });
-
-        const imageUrl = await uploadToCloudinary(
-          form.picture as any,
-          "terradues/users/profile",
-          "image",
+      if (signUpAttempt.status !== "complete") {
+        console.error(
+          "RENTER SIGNUP NOT COMPLETE:",
+          JSON.stringify(signUpAttempt, null, 2),
         );
+        setError(
+          "Email verification is not complete yet. Please check the code and try again.",
+        );
+        return;
+      }
 
-        const docUrl = await uploadToCloudinary(
-          form.document as any,
+      const createdUserId = signUpAttempt.createdUserId;
+      const createdSessionId = signUpAttempt.createdSessionId;
+
+      if (!createdUserId) {
+        throw new Error(
+          "Clerk verified the email but did not return a user ID. Please try registering again.",
+        );
+      }
+
+      if (!createdSessionId) {
+        throw new Error(
+          "Clerk verified the email but did not return a session ID. Please try registering again.",
+        );
+      }
+
+      if (!form.picture) {
+        throw new Error(
+          "Valid Government ID is missing. Please select your photo again.",
+        );
+      }
+
+      // Upload the required government ID first.
+      const imageUrl = await uploadToCloudinary(
+        form.picture,
+        "terradues/users/profile",
+        "image",
+      );
+
+      if (!imageUrl) {
+        throw new Error("Failed to upload Valid Government ID.");
+      }
+
+      // House Lease Agreement Document is OPTIONAL.
+      let docUrl: string | null = null;
+
+      if (form.document) {
+        docUrl = await uploadToCloudinary(
+          form.document,
           "terradues/users/document",
           "raw",
         );
 
-        const userData: UserDataSignUpRenterType = {
-          userType: "Renter",
-          user_id: signUpAttempt.createdUserId as string,
-          email: signUpAttempt.emailAddress as string,
-          firstName: form.firstName,
-          lastName: form.lastName,
-          middleName: form.middleName,
-          contactNumber: form.contactNumber,
-          gender: form.gender,
-          phase: form.phase,
-          block: form.block,
-          lot: form.lot,
-          picture: imageUrl,
-          document: docUrl,
-
-          ownerAddress: form.ownerAddress,
-          ownerContactNumber: form.ownerContactNumber,
-          ownerName: form.ownerName,
-          ownerNumberOccupants: form.ownerNumberOccupants,
-
-          fullName: `${form.firstName} ${
-            form.middleName ? form.middleName[0] + "." : ""
-          } ${form.lastName}`,
-          address: `Blk ${form.block} Lot ${form.lot} Phase ${form.phase}`,
-        };
-
-        await addUser(userData);
-
-        navigate("/");
-        setIsLoading(false);
-      } else {
-        setIsLoading(false);
-        console.error(JSON.stringify(signUpAttempt, null, 2));
+        if (!docUrl) {
+          throw new Error("Failed to upload House Lease Agreement Document.");
+        }
       }
+
+      const userData: UserDataSignUpRenterType = {
+        userType: "Renter",
+        user_id: createdUserId,
+        email: form.email.trim(),
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        middleName: form.middleName.trim(),
+        contactNumber: form.contactNumber.trim(),
+        gender: form.gender,
+        phase: form.phase.trim(),
+        block: form.block.trim(),
+        lot: form.lot.trim(),
+        picture: imageUrl,
+        document: docUrl,
+
+        ownerAddress: form.ownerAddress.trim(),
+        ownerContactNumber: form.ownerContactNumber.trim(),
+        ownerName: form.ownerName.trim(),
+        ownerNumberOccupants: form.ownerNumberOccupants.trim(),
+
+        fullName: `${form.firstName.trim()} ${
+          form.middleName.trim() ? form.middleName.trim()[0] + "." : ""
+        } ${form.lastName.trim()}`
+          .replace(/\s+/g, " ")
+          .trim(),
+
+        address: `Blk ${form.block.trim()} Lot ${form.lot.trim()} Phase ${form.phase.trim()}`,
+      };
+
+      /*
+       * CRITICAL ORDER:
+       *
+       * 1. Clerk email verification
+       * 2. Upload registration files
+       * 3. Save renter in Firestore
+       * 4. Activate Clerk session
+       * 5. Navigate
+       *
+       * addUser() creates the resident document with approvalStatus: "pending",
+       * which is what makes the renter appear in Admin Registration Requests.
+       */
+      await addUser(userData);
+
+      // Only activate the Clerk session AFTER Firestore registration succeeds.
+      await setActive({ session: createdSessionId });
+
+      navigate("/");
     } catch (err: any) {
-      if (err.errors?.[0]?.code === "too_many_requests") {
-        setError("Too many requests. Please try again in a bit.");
-      } else if (err.errors?.[0]?.code === "form_param_nil") {
-        setError("Enter a code");
-      } else if (err.errors?.[0]?.code === "form_code_incorrect") {
-        setError("The code is incorrect");
-      }
+      console.error("RENTER REGISTRATION ERROR:", JSON.stringify(err, null, 2));
 
+      const clerkCode = err?.errors?.[0]?.code;
+      const clerkMessage =
+        err?.errors?.[0]?.longMessage ||
+        err?.errors?.[0]?.message ||
+        err?.message;
+
+      if (clerkCode === "too_many_requests") {
+        setError("Too many requests. Please try again in a bit.");
+      } else if (clerkCode === "form_param_nil") {
+        setError("Enter the verification code.");
+      } else if (clerkCode === "form_code_incorrect") {
+        setError("The verification code is incorrect.");
+      } else if (clerkCode === "verification_expired") {
+        setError(
+          "The verification code has expired. Please register again to request a new code.",
+        );
+      } else if (clerkCode === "client_state_invalid") {
+        setError(
+          "The registration session expired or was interrupted. Please register again without refreshing the page during email verification.",
+        );
+      } else {
+        setError(
+          clerkMessage ||
+            "Registration could not be completed. Please try again.",
+        );
+      }
+    } finally {
       setIsLoading(false);
     }
   };
@@ -336,14 +466,86 @@ export default function SignUpOwner() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
 
-    setForm((prev) => ({
-      ...prev,
-      [name]: isNumberOnlyField(name)
-        ? numbersOnly(value)
-        : type === "checkbox"
-          ? checked
-          : value,
-    }));
+    const newValue = isNumberOnlyField(name)
+      ? numbersOnly(value)
+      : type === "checkbox"
+        ? checked
+        : value;
+
+    setForm((prev) => ({ ...prev, [name]: newValue }));
+
+    let fieldError = "";
+
+    switch (name) {
+      case "firstName":
+        fieldError = validateName(String(newValue), "First name", true);
+        break;
+      case "middleName":
+        fieldError = validateName(String(newValue), "Middle name", false);
+        break;
+      case "lastName":
+        fieldError = validateName(String(newValue), "Last name", true);
+        break;
+      case "contactNumber":
+        fieldError = validateContactNumber(String(newValue));
+        break;
+      case "email":
+        fieldError = !String(newValue).trim()
+          ? "Email is required"
+          : !/^\S+@\S+\.\S+$/.test(String(newValue))
+            ? "Invalid email address"
+            : "";
+        break;
+      case "gender":
+        fieldError = String(newValue) ? "" : "Gender is required";
+        break;
+      case "phase":
+        fieldError = validateAddressNumber(String(newValue), "Phase");
+        break;
+      case "block":
+        fieldError = validateAddressNumber(String(newValue), "Block");
+        break;
+      case "lot":
+        fieldError = validateAddressNumber(String(newValue), "Lot");
+        break;
+      case "ownerName":
+        fieldError = validateName(String(newValue), "Owner's name", true);
+        break;
+      case "ownerContactNumber":
+        fieldError = validateContactNumber(String(newValue));
+        break;
+      case "ownerAddress":
+        fieldError = validateOwnerAddress(String(newValue));
+        break;
+      case "ownerNumberOccupants":
+        fieldError = validateOccupants(String(newValue));
+        break;
+      case "password":
+        fieldError = validatePassword(String(newValue));
+        break;
+      case "confirmPassword":
+        fieldError = validateConfirmPassword(String(newValue), form.password);
+        break;
+    }
+
+    setErrors((prev) => {
+      const updatedErrors = { ...prev };
+      const key = name as keyof RenterSignUpFormData;
+
+      if (fieldError) updatedErrors[key] = fieldError;
+      else delete updatedErrors[key];
+
+      if (name === "password" && form.confirmPassword) {
+        const confirmError = validateConfirmPassword(
+          form.confirmPassword,
+          String(newValue),
+        );
+        if (confirmError) updatedErrors.confirmPassword = confirmError;
+        else delete updatedErrors.confirmPassword;
+      }
+
+      return updatedErrors;
+    });
   };
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -353,6 +555,17 @@ export default function SignUpOwner() {
       ...prev,
       picture: photo,
     }));
+
+    setErrors((prev) => {
+      const updatedErrors = { ...prev };
+      if (!photo) updatedErrors.picture = "Picture is required";
+      else if (!isImageFile(photo))
+        updatedErrors.picture = "Please upload a valid image file";
+      else if (photo.size > 5 * 1024 * 1024)
+        updatedErrors.picture = "Image must be less than 5MB";
+      else delete updatedErrors.picture;
+      return updatedErrors;
+    });
 
     if (photo) {
       readFileAsDataURL(photo).then((res) => setImagePreview(res as string));
@@ -370,6 +583,17 @@ export default function SignUpOwner() {
     }));
 
     if (documentPreview) URL.revokeObjectURL(documentPreview);
+
+    setErrors((prev) => {
+      const updatedErrors = { ...prev };
+      if (!doc) delete updatedErrors.document;
+      else if (!isAllowedDocument(doc))
+        updatedErrors.document = "Document must be PDF, DOC, or DOCX";
+      else if (doc.size > 10 * 1024 * 1024)
+        updatedErrors.document = "Document must be less than 10MB";
+      else delete updatedErrors.document;
+      return updatedErrors;
+    });
 
     if (!doc) {
       setDocumentPreview(null);
@@ -394,18 +618,41 @@ export default function SignUpOwner() {
   const errorClass = "mt-1 text-xs text-red-500 flex items-center gap-1";
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+    <div className="relative min-h-screen bg-gray-100 flex items-center justify-center p-4">
+      {/* Back Button */}
+      <button
+        type="button"
+        onClick={handleBack}
+        className="absolute top-6 left-6 flex items-center gap-2 px-4 py-2 rounded-lg
+                 text-gray-700 font-semibold hover:bg-gray-200
+                 transition cursor-pointer"
+      >
+        <span className="text-2xl">←</span>
+        <span>Back</span>
+      </button>
+
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-lg p-6 md:p-10">
-        <div className="flex flex-col items-center px-4">
+        <div className="flex flex-col items-center px-4 mb-8">
           <img
             src={Icon}
-            alt="Welcome"
+            alt="TerraDues"
             className="max-w-md size-28 object-contain fade-in"
           />
 
           <div className="flex gap-1 text-xl">
             <span className="font-bold text-green-700">TERRA</span>
             <span className="font-bold text-black">DUES</span>
+          </div>
+
+          {/* Registration Header */}
+          <div className="mt-6 text-center">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+              Renter Registration
+            </h1>
+
+            <p className="mt-2 text-sm text-gray-500">
+              Please provide your renter information to create your account.
+            </p>
           </div>
         </div>
 
@@ -466,6 +713,7 @@ export default function SignUpOwner() {
               type="text"
               inputMode="numeric"
               pattern="[0-9]*"
+              maxLength={11}
               name="contactNumber"
               value={form.contactNumber}
               onChange={handleChange}
@@ -578,6 +826,10 @@ export default function SignUpOwner() {
             {errors.lot && <p className={errorClass}>{errors.lot}</p>}
           </div>
 
+          <div className="md:col-span-2 flex flex-wrap gap-4 text-sm text-gray-700">
+            <span className="font-medium">Password</span>
+          </div>
+
           <div className="relative">
             <AppInput
               type={showPassword ? "text" : "password"}
@@ -662,6 +914,7 @@ export default function SignUpOwner() {
               type="text"
               inputMode="numeric"
               pattern="[0-9]*"
+              maxLength={11}
               name="ownerContactNumber"
               value={form.ownerContactNumber}
               onChange={handleChange}
@@ -780,11 +1033,12 @@ export default function SignUpOwner() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                House Lease Agreement Document
+                House Lease Agreement Document (Optional)
               </label>
 
               <p className="min-h-8 text-xs text-gray-500">
-                Upload your house lease agreement document for verification.
+                Optional — upload your house lease agreement document if
+                available.
               </p>
 
               <label

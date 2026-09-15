@@ -36,8 +36,6 @@ type RegistrationForm = {
   lot: string;
 
   familyMembers: string;
-  occupancyType: string[];
-  forRent: boolean;
 
   ownerName: string;
   ownerContactNumber: string;
@@ -56,8 +54,6 @@ const initialForm: RegistrationForm = {
   lot: "",
 
   familyMembers: "",
-  occupancyType: [],
-  forRent: false,
 
   ownerName: "",
   ownerContactNumber: "",
@@ -79,6 +75,86 @@ const isAllowedDocument = (file: File) =>
   /\.(pdf|doc|docx)$/i.test(file.name);
 
 const numbersOnly = (value: string) => value.replace(/\D/g, "");
+const validateName = (
+  value: string,
+  fieldLabel: string,
+  required = true,
+): string => {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return required ? `${fieldLabel} is required` : "";
+  }
+
+  if (trimmed.length < 2) {
+    return `${fieldLabel} must be at least 2 characters`;
+  }
+
+  if (!/^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/.test(trimmed)) {
+    return `${fieldLabel} can only contain letters, spaces, hyphens, and apostrophes`;
+  }
+
+  return "";
+};
+
+const validateContactNumber = (value: string): string => {
+  const contact = value.trim();
+
+  if (!contact) return "Contact number is required";
+
+  if (!/^\d+$/.test(contact)) return "Contact number must contain numbers only";
+
+  if (!contact.startsWith("09")) return "Contact number must start with 09";
+
+  if (contact.length < 11)
+    return `Contact number needs ${11 - contact.length} more digit${
+      11 - contact.length === 1 ? "" : "s"
+    }`;
+
+  if (contact.length > 11) return "Contact number must be exactly 11 digits";
+
+  if (!/^09\d{9}$/.test(contact))
+    return "Please enter a valid Philippine mobile number";
+
+  return "";
+};
+
+const validateAddressNumber = (value: string, field: string): string => {
+  const trimmed = value.trim();
+
+  if (!trimmed) return `${field} is required`;
+
+  if (!/^\d+$/.test(trimmed)) return `${field} must contain numbers only`;
+
+  if (Number(trimmed) <= 0) return `${field} must be greater than 0`;
+
+  return "";
+};
+
+const validateFamilyMembers = (value: string): string => {
+  const trimmed = value.trim();
+
+  if (!trimmed) return "Number of family members is required";
+
+  if (Number(trimmed) < 1) return "Number of family members must be at least 1";
+
+  return "";
+};
+
+const validateOwnerAddress = (value: string): string => {
+  if (!value.trim()) return "Owner address is required";
+  return "";
+};
+
+const validateOccupants = (value: string): string => {
+  const trimmed = value.trim();
+
+  if (!trimmed) return "Number of occupants is required";
+
+  if (Number(trimmed) < 1) return "Number of occupants must be at least 1";
+
+  return "";
+};
 
 export default function RegistrationDeniedPage() {
   const { signOut } = useClerk();
@@ -98,6 +174,8 @@ export default function RegistrationDeniedPage() {
   const [success, setSuccess] = useState("");
 
   const [formError, setFormError] = useState("");
+  type FormErrors = Partial<Record<keyof RegistrationForm, string>>;
+  const [errors, setErrors] = useState<FormErrors>({});
 
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -144,13 +222,6 @@ export default function RegistrationDeniedPage() {
 
       familyMembers:
         "familyMembers" in resident ? (resident.familyMembers ?? "") : "",
-
-      occupancyType:
-        "occupancyType" in resident && Array.isArray(resident.occupancyType)
-          ? resident.occupancyType
-          : [],
-
-      forRent: "forRent" in resident ? Boolean(resident.forRent) : false,
 
       ownerName: "ownerName" in resident ? (resident.ownerName ?? "") : "",
 
@@ -209,14 +280,6 @@ export default function RegistrationDeniedPage() {
         throw new Error("Please upload a valid government ID.");
       }
 
-      if (!registrationDocumentUrl) {
-        throw new Error(
-          currentResident.userType === "Renter"
-            ? "Please upload your house lease agreement."
-            : "Please upload your house turnover document.",
-        );
-      }
-
       const payload: ResubmitDeniedRegistrationPayload = {
         firstName: form.firstName,
 
@@ -241,10 +304,6 @@ export default function RegistrationDeniedPage() {
 
       if (currentResident.userType === "Owner") {
         payload.familyMembers = form.familyMembers;
-
-        payload.occupancyType = form.occupancyType;
-
-        payload.forRent = form.forRent;
       } else {
         payload.ownerName = form.ownerName;
 
@@ -293,17 +352,67 @@ export default function RegistrationDeniedPage() {
       ...current,
       [field]: value,
     }));
-  };
 
-  const toggleOccupancyType = (value: string) => {
-    const selected = form.occupancyType.includes(value);
+    let error = "";
 
-    handleChange(
-      "occupancyType",
-      selected
-        ? form.occupancyType.filter((item) => item !== value)
-        : [...form.occupancyType, value],
-    );
+    switch (field) {
+      case "firstName":
+        error = validateName(String(value), "First name", true);
+        break;
+
+      case "middleName":
+        error = validateName(String(value), "Middle name", false);
+        break;
+
+      case "lastName":
+        error = validateName(String(value), "Last name", true);
+        break;
+
+      case "contactNumber":
+        error = validateContactNumber(String(value));
+        break;
+
+      case "phase":
+        error = validateAddressNumber(String(value), "Phase");
+        break;
+
+      case "block":
+        error = validateAddressNumber(String(value), "Block");
+        break;
+
+      case "lot":
+        error = validateAddressNumber(String(value), "Lot");
+        break;
+
+      case "familyMembers":
+        error = validateFamilyMembers(String(value));
+        break;
+
+      case "ownerName":
+        error = validateName(String(value), "Owner name", true);
+        break;
+
+      case "ownerContactNumber":
+        error = validateContactNumber(String(value));
+        break;
+
+      case "ownerAddress":
+        error = validateOwnerAddress(String(value));
+        break;
+
+      case "ownerNumberOccupants":
+        error = validateOccupants(String(value));
+        break;
+    }
+
+    setErrors((prev) => {
+      const updated = { ...prev };
+
+      if (error) updated[field] = error;
+      else delete updated[field];
+
+      return updated;
+    });
   };
 
   const handleGovernmentIdChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -550,41 +659,96 @@ export default function RegistrationDeniedPage() {
             </div>
 
             <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <AppInput
-                label="First Name"
-                placeholder="First Name"
-                value={form.firstName}
-                onChange={(event) =>
-                  handleChange("firstName", event.target.value)
-                }
-              />
+              <div>
+                <AppInput
+                  label="First Name"
+                  placeholder="First Name"
+                  value={form.firstName}
+                  onChange={(e) => handleChange("firstName", e.target.value)}
+                  className={`${
+                    errors.firstName
+                      ? "border-red-400 focus:ring-red-500"
+                      : form.firstName &&
+                          !validateName(form.firstName, "First name", true)
+                        ? "border-green-500 focus:ring-green-500"
+                        : ""
+                  }`}
+                />
 
-              <AppInput
-                label="Middle Name"
-                placeholder="Middle Name"
-                value={form.middleName}
-                onChange={(event) =>
-                  handleChange("middleName", event.target.value)
-                }
-              />
+                {errors.firstName && (
+                  <p className="mt-1 text-xs text-red-600">
+                    {errors.firstName}
+                  </p>
+                )}
+              </div>
 
-              <AppInput
-                label="Last Name"
-                placeholder="Last Name"
-                value={form.lastName}
-                onChange={(event) =>
-                  handleChange("lastName", event.target.value)
-                }
-              />
+              <div>
+                <AppInput
+                  label="Middle Name"
+                  placeholder="Middle Name (Optional)"
+                  value={form.middleName}
+                  onChange={(e) => handleChange("middleName", e.target.value)}
+                  className={`${
+                    errors.middleName
+                      ? "border-red-400 focus:ring-red-500"
+                      : form.middleName &&
+                          !validateName(form.middleName, "Middle name", false)
+                        ? "border-green-500 focus:ring-green-500"
+                        : ""
+                  }`}
+                />
 
-              <AppInput
-                label="Contact Number"
-                placeholder="09XXXXXXXXX"
-                value={form.contactNumber}
-                onChange={(event) =>
-                  handleChange("contactNumber", numbersOnly(event.target.value))
-                }
-              />
+                {errors.middleName && (
+                  <p className="mt-1 text-xs text-red-600">
+                    {errors.middleName}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <AppInput
+                  label="Last Name"
+                  placeholder="Last Name"
+                  value={form.lastName}
+                  onChange={(e) => handleChange("lastName", e.target.value)}
+                  className={`${
+                    errors.lastName
+                      ? "border-red-400 focus:ring-red-500"
+                      : form.lastName &&
+                          !validateName(form.lastName, "Last name", true)
+                        ? "border-green-500 focus:ring-green-500"
+                        : ""
+                  }`}
+                />
+
+                {errors.lastName && (
+                  <p className="mt-1 text-xs text-red-600">{errors.lastName}</p>
+                )}
+              </div>
+
+              <div>
+                <AppInput
+                  label="Contact Number"
+                  placeholder="09XXXXXXXXX"
+                  value={form.contactNumber}
+                  onChange={(e) =>
+                    handleChange("contactNumber", numbersOnly(e.target.value))
+                  }
+                  className={`${
+                    errors.contactNumber
+                      ? "border-red-400 focus:ring-red-500"
+                      : /^09\d{9}$/.test(form.contactNumber)
+                        ? "border-green-500 focus:ring-green-500"
+                        : ""
+                  }`}
+                />
+
+                {errors.contactNumber && (
+                  <p className="mt-1 text-xs text-red-600">
+                    {errors.contactNumber}
+                  </p>
+                )}
+              </div>
 
               <div>
                 <label
@@ -612,32 +776,109 @@ export default function RegistrationDeniedPage() {
                 </select>
               </div>
 
-              <AppInput
-                label="Phase"
-                placeholder="Phase"
-                value={form.phase}
-                onChange={(event) =>
-                  handleChange("phase", numbersOnly(event.target.value))
-                }
-              />
+              {/* Phase */}
+              <div>
+                <AppInput
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  label="Phase"
+                  placeholder="Phase"
+                  value={form.phase}
+                  onChange={(event) =>
+                    handleChange("phase", numbersOnly(event.target.value))
+                  }
+                  className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 transition-colors ${
+                    errors.phase
+                      ? "border-red-400 focus:ring-red-500"
+                      : form.phase &&
+                          !validateAddressNumber(form.phase, "Phase")
+                        ? "border-green-500 focus:ring-green-500"
+                        : "border-zinc-200 focus:ring-emerald-500"
+                  }`}
+                />
 
-              <AppInput
-                label="Block"
-                placeholder="Block"
-                value={form.block}
-                onChange={(event) =>
-                  handleChange("block", numbersOnly(event.target.value))
-                }
-              />
+                {errors.phase && (
+                  <p className="mt-1 text-xs text-red-500">{errors.phase}</p>
+                )}
 
-              <AppInput
-                label="Lot"
-                placeholder="Lot"
-                value={form.lot}
-                onChange={(event) =>
-                  handleChange("lot", numbersOnly(event.target.value))
-                }
-              />
+                {!errors.phase &&
+                  form.phase &&
+                  !validateAddressNumber(form.phase, "Phase") && (
+                    <p className="mt-1 text-xs text-green-600">
+                      Valid phase number
+                    </p>
+                  )}
+              </div>
+
+              {/* Block */}
+              <div>
+                <AppInput
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  label="Block"
+                  placeholder="Block"
+                  value={form.block}
+                  onChange={(event) =>
+                    handleChange("block", numbersOnly(event.target.value))
+                  }
+                  className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 transition-colors ${
+                    errors.block
+                      ? "border-red-400 focus:ring-red-500"
+                      : form.block &&
+                          !validateAddressNumber(form.block, "Block")
+                        ? "border-green-500 focus:ring-green-500"
+                        : "border-zinc-200 focus:ring-emerald-500"
+                  }`}
+                />
+
+                {errors.block && (
+                  <p className="mt-1 text-xs text-red-500">{errors.block}</p>
+                )}
+
+                {!errors.block &&
+                  form.block &&
+                  !validateAddressNumber(form.block, "Block") && (
+                    <p className="mt-1 text-xs text-green-600">
+                      Valid block number
+                    </p>
+                  )}
+              </div>
+
+              {/* Lot */}
+              <div>
+                <AppInput
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  label="Lot"
+                  placeholder="Lot"
+                  value={form.lot}
+                  onChange={(event) =>
+                    handleChange("lot", numbersOnly(event.target.value))
+                  }
+                  className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 transition-colors ${
+                    errors.lot
+                      ? "border-red-400 focus:ring-red-500"
+                      : form.lot && !validateAddressNumber(form.lot, "Lot")
+                        ? "border-green-500 focus:ring-green-500"
+                        : "border-zinc-200 focus:ring-emerald-500"
+                  }`}
+                />
+
+                {errors.lot && (
+                  <p className="mt-1 text-xs text-red-500">{errors.lot}</p>
+                )}
+
+                {!errors.lot &&
+                  form.lot &&
+                  !validateAddressNumber(form.lot, "Lot") && (
+                    <p className="mt-1 text-xs text-green-600">
+                      Valid lot number
+                    </p>
+                  )}
+              </div>
             </div>
 
             {resident.userType === "Owner" ? (
@@ -646,56 +887,30 @@ export default function RegistrationDeniedPage() {
                   Homeowner information
                 </h3>
 
-                <AppInput
-                  label="Number of Family Members"
-                  placeholder="Number of family members"
-                  value={form.familyMembers}
-                  onChange={(event) =>
-                    handleChange(
-                      "familyMembers",
-                      numbersOnly(event.target.value),
-                    )
-                  }
-                />
-
                 <div>
-                  <p className="mb-3 text-sm font-semibold text-zinc-800">
-                    Occupancy Type
-                  </p>
-
-                  <div className="flex flex-wrap gap-3">
-                    {["Permanent", "Temporary"].map((item) => (
-                      <label
-                        key={item}
-                        className="flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 px-4 py-3 text-sm font-medium text-zinc-700"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={form.occupancyType.includes(item)}
-                          onChange={() => toggleOccupancyType(item)}
-                          className="checkbox checkbox-success checkbox-sm"
-                        />
-
-                        {item}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-zinc-200 px-4 py-3">
-                  <input
-                    type="checkbox"
-                    checked={form.forRent}
-                    onChange={(event) =>
-                      handleChange("forRent", event.target.checked)
+                  <AppInput
+                    label="Number of Family Members"
+                    placeholder="Number of family members"
+                    value={form.familyMembers}
+                    onChange={(e) =>
+                      handleChange("familyMembers", numbersOnly(e.target.value))
                     }
-                    className="checkbox checkbox-success checkbox-sm"
+                    className={`${
+                      errors.familyMembers
+                        ? "border-red-400 focus:ring-red-500"
+                        : form.familyMembers &&
+                            !validateFamilyMembers(form.familyMembers)
+                          ? "border-green-500 focus:ring-green-500"
+                          : ""
+                    }`}
                   />
 
-                  <span className="text-sm font-semibold text-zinc-800">
-                    Property is available for rent
-                  </span>
-                </label>
+                  {errors.familyMembers && (
+                    <p className="mt-1 text-xs text-red-600">
+                      {errors.familyMembers}
+                    </p>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="mt-6 grid grid-cols-1 gap-4 border-t border-zinc-100 pt-6 sm:grid-cols-2">
@@ -705,49 +920,110 @@ export default function RegistrationDeniedPage() {
                   </h3>
                 </div>
 
-                <AppInput
-                  label="Owner Name"
-                  placeholder="Property owner name"
-                  value={form.ownerName}
-                  onChange={(event) =>
-                    handleChange("ownerName", event.target.value)
-                  }
-                />
-
-                <AppInput
-                  label="Owner Contact Number"
-                  placeholder="09XXXXXXXXX"
-                  value={form.ownerContactNumber}
-                  onChange={(event) =>
-                    handleChange(
-                      "ownerContactNumber",
-                      numbersOnly(event.target.value),
-                    )
-                  }
-                />
-
-                <div className="sm:col-span-2">
+                <div>
                   <AppInput
-                    label="Owner Address"
-                    placeholder="Property owner address"
-                    value={form.ownerAddress}
-                    onChange={(event) =>
-                      handleChange("ownerAddress", event.target.value)
-                    }
+                    label="Owner Name"
+                    placeholder="Property owner name"
+                    value={form.ownerName}
+                    onChange={(e) => handleChange("ownerName", e.target.value)}
+                    className={`${
+                      errors.ownerName
+                        ? "border-red-400 focus:ring-red-500"
+                        : form.ownerName &&
+                            !validateName(form.ownerName, "Owner name", true)
+                          ? "border-green-500 focus:ring-green-500"
+                          : ""
+                    }`}
                   />
+
+                  {errors.ownerName && (
+                    <p className="mt-1 text-xs text-red-600">
+                      {errors.ownerName}
+                    </p>
+                  )}
                 </div>
 
-                <AppInput
-                  label="Number of Occupants"
-                  placeholder="Number of occupants"
-                  value={form.ownerNumberOccupants}
-                  onChange={(event) =>
-                    handleChange(
-                      "ownerNumberOccupants",
-                      numbersOnly(event.target.value),
-                    )
-                  }
-                />
+                <div>
+                  <AppInput
+                    label="Owner Contact Number"
+                    placeholder="09XXXXXXXXX"
+                    value={form.ownerContactNumber}
+                    onChange={(e) =>
+                      handleChange(
+                        "ownerContactNumber",
+                        numbersOnly(e.target.value),
+                      )
+                    }
+                    className={`${
+                      errors.ownerContactNumber
+                        ? "border-red-400 focus:ring-red-500"
+                        : /^09\d{9}$/.test(form.ownerContactNumber)
+                          ? "border-green-500 focus:ring-green-500"
+                          : ""
+                    }`}
+                  />
+
+                  {errors.ownerContactNumber && (
+                    <p className="mt-1 text-xs text-red-600">
+                      {errors.ownerContactNumber}
+                    </p>
+                  )}
+                </div>
+
+                <div className="sm:col-span-2">
+                  <div>
+                    <AppInput
+                      label="Owner Address"
+                      placeholder="Property owner address"
+                      value={form.ownerAddress}
+                      onChange={(e) =>
+                        handleChange("ownerAddress", e.target.value)
+                      }
+                      className={`${
+                        errors.ownerAddress
+                          ? "border-red-400 focus:ring-red-500"
+                          : form.ownerAddress &&
+                              !validateOwnerAddress(form.ownerAddress)
+                            ? "border-green-500 focus:ring-green-500"
+                            : ""
+                      }`}
+                    />
+
+                    {errors.ownerAddress && (
+                      <p className="mt-1 text-xs text-red-600">
+                        {errors.ownerAddress}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <AppInput
+                    label="Number of Occupants"
+                    placeholder="Number of occupants"
+                    value={form.ownerNumberOccupants}
+                    onChange={(e) =>
+                      handleChange(
+                        "ownerNumberOccupants",
+                        numbersOnly(e.target.value),
+                      )
+                    }
+                    className={`${
+                      errors.ownerNumberOccupants
+                        ? "border-red-400 focus:ring-red-500"
+                        : form.ownerNumberOccupants &&
+                            !validateOccupants(form.ownerNumberOccupants)
+                          ? "border-green-500 focus:ring-green-500"
+                          : ""
+                    }`}
+                  />
+
+                  {errors.ownerNumberOccupants && (
+                    <p className="mt-1 text-xs text-red-600">
+                      {errors.ownerNumberOccupants}
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 
@@ -839,12 +1115,12 @@ export default function RegistrationDeniedPage() {
                     <div>
                       <h4 className="text-sm font-bold text-zinc-900">
                         {resident.userType === "Renter"
-                          ? "House Lease Agreement"
-                          : "House Turnover Document"}
+                          ? "House Lease Agreement (Optional)"
+                          : "House Turnover Document (Optional)"}
                       </h4>
 
                       <p className="mt-1 text-xs leading-5 text-zinc-500">
-                        Upload a PDF, DOC, or DOCX file for verification.
+                        Optional — upload a PDF, DOC, or DOCX file if available.
                       </p>
                     </div>
                   </div>

@@ -21,7 +21,13 @@ type OwnerSignUpFormData = Omit<
 
 type FormErrors = Partial<Record<keyof OwnerSignUpFormData, string>>;
 
-const NUMBER_ONLY_FIELDS = ["phase", "block", "lot", "familyMembers"] as const;
+const NUMBER_ONLY_FIELDS = [
+  "contactNumber",
+  "phase",
+  "block",
+  "lot",
+  "familyMembers",
+] as const;
 
 type NumberOnlyField = (typeof NUMBER_ONLY_FIELDS)[number];
 
@@ -44,7 +50,6 @@ export default function SignUpOwner() {
     block: "",
     lot: "",
     familyMembers: "",
-    occupancyType: [],
     forRent: false,
     password: "",
     confirmPassword: "",
@@ -72,6 +77,9 @@ export default function SignUpOwner() {
   const [error, setError] = useState<string>("");
 
   const navigate = useNavigate();
+  const handleBack = () => {
+    navigate(-1);
+  };
 
   const isImageFile = (file: File) => file.type.startsWith("image/");
 
@@ -90,16 +98,181 @@ export default function SignUpOwner() {
     );
   };
 
+  const validateContactNumber = (value: string): string => {
+    const contactNumber = value.trim();
+
+    if (!contactNumber) {
+      return "Contact number is required";
+    }
+
+    if (!/^\d+$/.test(contactNumber)) {
+      return "Contact number must contain numbers only";
+    }
+
+    // Philippine mobile number must start with 09
+    if (contactNumber.length >= 1 && contactNumber[0] !== "0") {
+      return "Contact number must start with 09";
+    }
+
+    if (contactNumber.length >= 2 && !contactNumber.startsWith("09")) {
+      return "Contact number must start with 09";
+    }
+
+    // Philippine mobile number must be exactly 11 digits
+    if (contactNumber.length < 11) {
+      const remaining = 11 - contactNumber.length;
+
+      return `Contact number needs ${remaining} more digit${
+        remaining === 1 ? "" : "s"
+      }`;
+    }
+
+    if (contactNumber.length > 11) {
+      return "Contact number must be exactly 11 digits";
+    }
+
+    // Final validation
+    if (!/^09\d{9}$/.test(contactNumber)) {
+      return "Please enter a valid Philippine mobile number";
+    }
+
+    return "";
+  };
+
+  const validatePassword = (value: string): string => {
+    if (!value) {
+      return "Password is required";
+    }
+
+    if (value.length < 8) {
+      return `Password needs ${8 - value.length} more character${
+        8 - value.length === 1 ? "" : "s"
+      }`;
+    }
+
+    if (!/[A-Z]/.test(value)) {
+      return "Add at least 1 uppercase letter";
+    }
+
+    if (!/[a-z]/.test(value)) {
+      return "Add at least 1 lowercase letter";
+    }
+
+    if (!/\d/.test(value)) {
+      return "Add at least 1 number";
+    }
+
+    if (!/[^\w\s]/.test(value)) {
+      return "Add at least 1 special character";
+    }
+
+    return "";
+  };
+
+  const validateConfirmPassword = (
+    confirmPassword: string,
+    password: string,
+  ): string => {
+    if (!confirmPassword) {
+      return "Please confirm your password";
+    }
+
+    if (confirmPassword !== password) {
+      return "Passwords do not match";
+    }
+
+    return "";
+  };
+
+  const validateName = (
+    value: string,
+    fieldLabel: string,
+    required = true,
+  ): string => {
+    const trimmedValue = value.trim();
+
+    // Middle name can be optional
+    if (!trimmedValue) {
+      return required ? `${fieldLabel} is required` : "";
+    }
+
+    if (trimmedValue.length < 2) {
+      return `${fieldLabel} must be at least 2 characters`;
+    }
+
+    // Allows:
+    // Juan
+    // Mary Jane
+    // Anne-Marie
+    // O'Connor
+    // José
+    if (!/^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/.test(trimmedValue)) {
+      return `${fieldLabel} can only contain letters, spaces, hyphens, and apostrophes`;
+    }
+
+    return "";
+  };
+
+  const validateAddressNumber = (value: string, fieldLabel: string): string => {
+    const trimmedValue = value.trim();
+
+    if (!trimmedValue) {
+      return `${fieldLabel} is required`;
+    }
+
+    if (!/^\d+$/.test(trimmedValue)) {
+      return `${fieldLabel} must contain numbers only`;
+    }
+
+    if (Number(trimmedValue) <= 0) {
+      return `${fieldLabel} must be greater than 0`;
+    }
+
+    return "";
+  };
+
+  const validateFamilyMembers = (value: string): string => {
+    const trimmedValue = value.trim();
+
+    if (!trimmedValue) {
+      return "Number of family members is required";
+    }
+
+    if (!/^\d+$/.test(trimmedValue)) {
+      return "Number of family members must contain numbers only";
+    }
+
+    if (Number(trimmedValue) < 1) {
+      return "Number of family members must be at least 1";
+    }
+
+    return "";
+  };
+
   const validateForm = () => {
     const errors: FormErrors = {};
 
-    if (!form.firstName.trim()) errors.firstName = "First name is required";
-    if (!form.lastName.trim()) errors.lastName = "Last name is required";
+    const firstNameError = validateName(form.firstName, "First name", true);
 
-    if (!form.contactNumber.trim()) {
-      errors.contactNumber = "Contact number is required";
-    } else if (!/^\d{10,11}$/.test(form.contactNumber)) {
-      errors.contactNumber = "Contact number must be 10–11 digits";
+    const middleNameError = validateName(form.middleName, "Middle name", false);
+
+    const lastNameError = validateName(form.lastName, "Last name", true);
+
+    if (firstNameError) {
+      errors.firstName = firstNameError;
+    }
+
+    if (middleNameError) {
+      errors.middleName = middleNameError;
+    }
+
+    if (lastNameError) {
+      errors.lastName = lastNameError;
+    }
+
+    const contactNumberError = validateContactNumber(form.contactNumber);
+    if (contactNumberError) {
+      errors.contactNumber = contactNumberError;
     }
 
     if (!form.email.trim()) {
@@ -110,56 +283,41 @@ export default function SignUpOwner() {
 
     if (!form.gender) errors.gender = "Gender is required";
 
-    if (!form.phase.trim()) {
-      errors.phase = "Phase is required";
-    } else if (!/^\d+$/.test(form.phase)) {
-      errors.phase = "Phase must contain numbers only";
+    const phaseError = validateAddressNumber(form.phase, "Phase");
+    const blockError = validateAddressNumber(form.block, "Block");
+    const lotError = validateAddressNumber(form.lot, "Lot");
+
+    if (phaseError) {
+      errors.phase = phaseError;
     }
 
-    if (!form.block.trim()) {
-      errors.block = "Block is required";
-    } else if (!/^\d+$/.test(form.block)) {
-      errors.block = "Block must contain numbers only";
+    if (blockError) {
+      errors.block = blockError;
     }
 
-    if (!form.lot.trim()) {
-      errors.lot = "Lot is required";
-    } else if (!/^\d+$/.test(form.lot)) {
-      errors.lot = "Lot must contain numbers only";
+    if (lotError) {
+      errors.lot = lotError;
     }
 
-    if (!form.familyMembers.trim()) {
-      errors.familyMembers = "Family members is required";
-    } else if (!/^\d+$/.test(form.familyMembers)) {
-      errors.familyMembers = "Family members must contain numbers only";
+    const familyMembersError = validateFamilyMembers(form.familyMembers);
+
+    if (familyMembersError) {
+      errors.familyMembers = familyMembersError;
     }
 
-    if (form.occupancyType.length === 0) {
-      errors.occupancyType = "Please select at least one occupancy type";
+    const passwordError = validatePassword(form.password);
+
+    if (passwordError) {
+      errors.password = passwordError;
     }
 
-    if (!form.password) {
-      errors.password = "Password is required";
-    } else {
-      const pwd = form.password;
+    const confirmPasswordError = validateConfirmPassword(
+      form.confirmPassword,
+      form.password,
+    );
 
-      if (pwd.length < 8) {
-        errors.password = "Password must be at least 8 characters";
-      } else if (!/[A-Z]/.test(pwd)) {
-        errors.password = "Add at least 1 uppercase letter";
-      } else if (!/[a-z]/.test(pwd)) {
-        errors.password = "Add at least 1 lowercase letter";
-      } else if (!/\d/.test(pwd)) {
-        errors.password = "Add at least 1 number";
-      } else if (!/[^\w\s]/.test(pwd)) {
-        errors.password = "Add at least 1 special character";
-      }
-    }
-
-    if (!form.confirmPassword) {
-      errors.confirmPassword = "Please confirm your password";
-    } else if (form.confirmPassword !== form.password) {
-      errors.confirmPassword = "Passwords do not match";
+    if (confirmPasswordError) {
+      errors.confirmPassword = confirmPasswordError;
     }
 
     if (!form.picture) {
@@ -168,9 +326,9 @@ export default function SignUpOwner() {
       errors.picture = "Please upload a valid image file";
     }
 
-    if (!form.document) {
-      errors.document = "Document is required";
-    } else if (!isAllowedDocument(form.document)) {
+    // House Turnover Document is optional.
+    // Validate its type only when the user selects a file.
+    if (form.document && !isAllowedDocument(form.document)) {
       errors.document = "Document must be PDF, DOC, or DOCX";
     }
 
@@ -185,114 +343,428 @@ export default function SignUpOwner() {
       errors.document = `Document must be less than ${MAX_DOC_MB}MB`;
     }
 
-    setErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
+    const isValid = Object.keys(errors).length === 0;
 
+    console.log("Validation result:", {
+      isValid,
+      errors,
+    });
+
+    setErrors(errors);
+
+    return isValid;
+  };
   const onSignUpPress = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!isLoaded) return;
-    if (!validateForm()) return;
+    setError("");
+
+    if (!isLoaded || !signUp) {
+      setError("Authentication is still loading. Please try again.");
+      return;
+    }
+
+    const isValid = validateForm();
+
+    if (!isValid) {
+      setError(
+        "Please check the highlighted fields and correct the errors before registering.",
+      );
+
+      setTimeout(() => {
+        const firstInvalidField = document.querySelector(".border-red-400");
+
+        firstInvalidField?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }, 100);
+
+      return;
+    }
 
     setIsLoading(true);
 
     try {
-      await signUp.create({
-        emailAddress: form.email,
+      console.log("===== CREATING CLERK SIGNUP =====");
+
+      const signUpAttempt = await signUp.create({
+        emailAddress: form.email.trim(),
         password: form.password,
       });
 
-      await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
+      console.log("Signup ID:", signUpAttempt.id);
+      console.log("Signup status:", signUpAttempt.status);
+      console.log("Signup:", signUpAttempt);
 
-      setIsLoading(false);
+      if (!signUpAttempt.id) {
+        throw new Error(
+          "Clerk did not create a signup attempt. Please try again.",
+        );
+      }
+
+      console.log("===== PREPARING EMAIL VERIFICATION =====");
+
+      await signUp.prepareEmailAddressVerification({
+        strategy: "email_code",
+      });
+
+      console.log("Verification email sent.");
+      console.log("Current signup ID:", signUp.id);
+
+      /*
+       * IMPORTANT:
+       *
+       * Do NOT:
+       * - navigate()
+       * - setActive()
+       * - window.location.reload()
+       * - window.location.href
+       *
+       * We must keep the current Clerk signup attempt alive.
+       */
+
+      setCode("");
       setError("");
       setPendingVerification(true);
     } catch (err: any) {
-      if (err.errors?.[0]?.code === "form_identifier_exists") {
-        setError("That email address is taken. Please try another.");
-      } else if (err.errors?.[0]?.code === "form_param_format_invalid") {
-        setError("Email address must be a valid email address.");
-      } else if (err.errors?.[0]?.code === "form_param_nil") {
-        setError("Email or password is empty");
-      } else if (err.errors?.[0]?.code === "form_password_length_too_short") {
-        setError("Passwords must be 8 characters or more.");
-      } else if (err.errors?.[0]?.code === "form_password_pwned") {
-        setError("Please use a different password.");
-      } else if (err.errors?.[0]?.code === "too_many_requests") {
-        setError(err.errors?.[0]?.message);
-      }
+      console.error("HOMEOWNER SIGNUP ERROR:", err);
 
+      const clerkError = err?.errors?.[0];
+
+      console.error(
+        "HOMEOWNER SIGNUP ERROR JSON:",
+        JSON.stringify(err, null, 2),
+      );
+
+      switch (clerkError?.code) {
+        case "form_identifier_exists":
+          setError(
+            "This email address is already registered. Please use another email or sign in.",
+          );
+          break;
+
+        case "form_param_format_invalid":
+          setError("Please enter a valid email address.");
+          break;
+
+        case "form_param_nil":
+          setError("Email or password is missing.");
+          break;
+
+        case "form_password_length_too_short":
+          setError("Password must be at least 8 characters.");
+          break;
+
+        case "form_password_pwned":
+          setError(
+            "This password has been found in a data breach. Please use a different password.",
+          );
+          break;
+
+        case "too_many_requests":
+          setError(
+            clerkError?.longMessage ||
+              "Too many registration attempts. Please wait and try again.",
+          );
+          break;
+
+        default:
+          setError(
+            clerkError?.longMessage ||
+              clerkError?.message ||
+              err?.message ||
+              "Unable to create your account. Please try again.",
+          );
+          break;
+      }
+    } finally {
       setIsLoading(false);
-      console.log(JSON.stringify(err, null, 2));
     }
   };
 
   const onVerifyPress = async () => {
-    if (!isLoaded) return;
+    setError("");
+
+    if (!isLoaded || !signUp) {
+      setError("Authentication is still loading. Please try again.");
+      return;
+    }
+
+    const verificationCode = code.trim();
+
+    if (!verificationCode) {
+      setError("Please enter the verification code.");
+      return;
+    }
+
+    if (!/^\d{6}$/.test(verificationCode)) {
+      setError("Please enter the complete 6-digit verification code.");
+      return;
+    }
 
     setIsLoading(true);
 
     try {
+      console.log("===== EMAIL VERIFICATION =====");
+      console.log("Signup ID before verification:", signUp.id);
+      console.log("Signup status:", signUp.status);
+
+      /*
+       * If this is undefined, Clerk lost the signup attempt.
+       * Don't blindly send the verification request.
+       */
+      if (!signUp.id) {
+        throw new Error("SIGNUP_SESSION_LOST");
+      }
+
       const signUpAttempt = await signUp.attemptEmailAddressVerification({
-        code,
+        code: verificationCode,
       });
 
-      if (signUpAttempt.status === "complete") {
-        await setActive({ session: signUpAttempt.createdSessionId });
+      console.log("Verification result:", signUpAttempt);
 
-        const imageUrl = await uploadToCloudinary(
-          form.picture as any,
-          "terradues/users/profile",
-          "image",
+      /*
+       * Verification may still need requirements.
+       */
+      if (signUpAttempt.status !== "complete") {
+        console.error("Signup is not complete:", signUpAttempt);
+
+        setError(
+          "Email verification could not be completed. Please try again.",
         );
 
-        const docUrl = await uploadToCloudinary(
-          form.document as any,
+        return;
+      }
+
+      const createdUserId = signUpAttempt.createdUserId;
+
+      const createdSessionId = signUpAttempt.createdSessionId;
+
+      if (!createdUserId) {
+        throw new Error(
+          "Clerk verified the account but did not return a user ID.",
+        );
+      }
+
+      if (!createdSessionId) {
+        throw new Error(
+          "Clerk verified the account but did not return a session.",
+        );
+      }
+
+      console.log("===== CLERK ACCOUNT VERIFIED =====");
+
+      console.log("Created user:", createdUserId);
+
+      /*
+       * Files were already required by validateForm(),
+       * but check again before uploading.
+       */
+      if (!form.picture) {
+        throw new Error("Government ID is missing. Please register again.");
+      }
+
+      /*
+       * ==========================================
+       * CLOUDINARY - GOVERNMENT ID
+       * ==========================================
+       */
+
+      console.log("Uploading Government ID...");
+
+      const imageUrl = await uploadToCloudinary(
+        form.picture,
+        "terradues/users/profile",
+        "image",
+      );
+
+      if (!imageUrl) {
+        throw new Error("Failed to upload Government ID.");
+      }
+
+      console.log("Government ID uploaded:", imageUrl);
+
+      /*
+       * ==========================================
+       * CLOUDINARY - HOUSE TURNOVER DOCUMENT
+       * ==========================================
+       */
+
+      let docUrl: string | null = null;
+
+      if (form.document) {
+        console.log("Uploading House Turnover Document...");
+
+        docUrl = await uploadToCloudinary(
+          form.document,
           "terradues/users/document",
           "raw",
         );
 
-        const userData: UserDataSignUpOwnerType = {
-          userType: "Owner",
-          user_id: signUpAttempt.createdUserId as string,
-          email: signUpAttempt.emailAddress as string,
-          firstName: form.firstName,
-          lastName: form.lastName,
-          middleName: form.middleName,
-          contactNumber: form.contactNumber,
-          gender: form.gender,
-          phase: form.phase,
-          block: form.block,
-          lot: form.lot,
-          familyMembers: form.familyMembers,
-          occupancyType: form.occupancyType,
-          forRent: form.forRent,
-          picture: imageUrl,
-          document: docUrl,
-          fullName: `${form.firstName} ${
-            form.middleName ? form.middleName[0] + "." : ""
-          } ${form.lastName}`,
-          address: `Blk ${form.block} Lot ${form.lot} Phase ${form.phase}`,
-        };
+        if (!docUrl) {
+          throw new Error("Failed to upload House Turnover Document.");
+        }
 
-        await addUser(userData);
-
-        navigate("/");
-        setIsLoading(false);
+        console.log("House Turnover Document uploaded:", docUrl);
       } else {
-        setIsLoading(false);
-        console.error(JSON.stringify(signUpAttempt, null, 2));
-      }
-    } catch (err: any) {
-      if (err.errors?.[0]?.code === "too_many_requests") {
-        setError("Too many requests. Please try again in a bit.");
-      } else if (err.errors?.[0]?.code === "form_param_nil") {
-        setError("Enter a code");
-      } else if (err.errors?.[0]?.code === "form_code_incorrect") {
-        setError("The code is incorrect");
+        console.log("No House Turnover Document provided (optional).");
       }
 
+      /*
+       * ==========================================
+       * CREATE FIRESTORE RESIDENT
+       * ==========================================
+       */
+
+      const firstName = form.firstName.trim();
+
+      const middleName = form.middleName.trim();
+
+      const lastName = form.lastName.trim();
+
+      const fullName = [firstName, middleName, lastName]
+        .filter(Boolean)
+        .join(" ");
+
+      const userData: UserDataSignUpOwnerType = {
+        userType: "Owner",
+
+        user_id: createdUserId,
+
+        email: signUpAttempt.emailAddress?.trim() || form.email.trim(),
+
+        firstName,
+        middleName,
+        lastName,
+
+        contactNumber: form.contactNumber.trim(),
+
+        gender: form.gender,
+
+        phase: form.phase.trim(),
+        block: form.block.trim(),
+        lot: form.lot.trim(),
+
+        familyMembers: form.familyMembers.trim(),
+
+        forRent: false,
+
+        picture: imageUrl,
+        document: docUrl,
+
+        fullName,
+
+        address: `Blk ${form.block.trim()} Lot ${form.lot.trim()} Phase ${form.phase.trim()}`,
+      };
+
+      console.log("===== SAVING FIRESTORE RESIDENT =====");
+
+      console.log(userData);
+
+      const firestoreUserId = await addUser(userData);
+
+      if (!firestoreUserId) {
+        throw new Error("Firestore did not return the created resident ID.");
+      }
+
+      console.log("Firestore resident created successfully:", firestoreUserId);
+
+      /*
+       * IMPORTANT:
+       *
+       * Activate the Clerk session only AFTER
+       * Firestore has successfully stored the resident.
+       */
+      console.log("Activating Clerk session...");
+
+      await setActive({
+        session: createdSessionId,
+      });
+
+      console.log("===== HOMEOWNER REGISTRATION COMPLETE =====");
+
+      /*
+       * Your auth flow can now detect:
+       *
+       * role: resident
+       * approvalStatus: pending
+       *
+       * and show the pending approval page.
+       */
+      navigate("/", {
+        replace: true,
+      });
+    } catch (err: any) {
+      console.error("HOMEOWNER REGISTRATION ERROR:", err);
+
+      console.error(
+        "HOMEOWNER REGISTRATION ERROR JSON:",
+        JSON.stringify(err, null, 2),
+      );
+
+      const clerkError = err?.errors?.[0];
+
+      /*
+       * Exact Clerk error you encountered:
+       *
+       * client_state_invalid
+       * "No sign up attempt was found."
+       */
+      if (
+        clerkError?.code === "client_state_invalid" ||
+        err?.message === "SIGNUP_SESSION_LOST"
+      ) {
+        setError(
+          "Your registration session was lost. Please return to the registration form and register again.",
+        );
+
+        /*
+         * Leave verification mode so the user
+         * isn't permanently stuck here.
+         */
+        setPendingVerification(false);
+        setCode("");
+
+        return;
+      }
+
+      if (clerkError?.code === "form_code_incorrect") {
+        setError(
+          "The verification code is incorrect. Please check your email and try again.",
+        );
+
+        return;
+      }
+
+      if (clerkError?.code === "form_code_expired") {
+        setError(
+          "The verification code has expired. Please register again to receive a new code.",
+        );
+
+        setPendingVerification(false);
+        setCode("");
+
+        return;
+      }
+
+      if (clerkError?.code === "too_many_requests") {
+        setError(
+          clerkError?.longMessage ||
+            clerkError?.message ||
+            "Too many attempts. Please wait before trying again.",
+        );
+
+        return;
+      }
+
+      setError(
+        clerkError?.longMessage ||
+          clerkError?.message ||
+          err?.message ||
+          "Registration failed. Please try again.",
+      );
+    } finally {
       setIsLoading(false);
     }
   };
@@ -316,18 +788,203 @@ export default function SignUpOwner() {
   ) => {
     const { name, value, type, checked } = e.target as HTMLInputElement;
 
+    const newValue = isNumberOnlyField(name)
+      ? numbersOnly(value)
+      : type === "checkbox"
+        ? checked
+        : value;
+
     setForm((prev) => ({
       ...prev,
-      [name]: isNumberOnlyField(name)
-        ? numbersOnly(value)
-        : type === "checkbox"
-          ? checked
-          : value,
+      [name]: newValue,
     }));
+
+    // Instant Number of Family Members validation
+    if (name === "familyMembers") {
+      const familyMembersError = validateFamilyMembers(String(newValue));
+
+      setErrors((prev) => {
+        const updatedErrors = { ...prev };
+
+        if (familyMembersError) {
+          updatedErrors.familyMembers = familyMembersError;
+        } else {
+          delete updatedErrors.familyMembers;
+        }
+
+        return updatedErrors;
+      });
+    }
+
+    // Instant name validation while typing
+    if (name === "firstName" || name === "middleName" || name === "lastName") {
+      let nameError = "";
+
+      if (name === "firstName") {
+        nameError = validateName(value, "First name", true);
+      }
+
+      if (name === "middleName") {
+        nameError = validateName(value, "Middle name", false);
+      }
+
+      if (name === "lastName") {
+        nameError = validateName(value, "Last name", true);
+      }
+
+      setErrors((prev) => {
+        const updatedErrors = { ...prev };
+
+        if (nameError) {
+          updatedErrors[name] = nameError;
+        } else {
+          delete updatedErrors[name];
+        }
+
+        return updatedErrors;
+      });
+    }
+
+    // Instant Contact Number validation while typing
+    if (name === "contactNumber") {
+      const contactNumberError = validateContactNumber(String(newValue));
+
+      setErrors((prev) => {
+        const updatedErrors = { ...prev };
+
+        if (contactNumberError) {
+          updatedErrors.contactNumber = contactNumberError;
+        } else {
+          delete updatedErrors.contactNumber;
+        }
+
+        return updatedErrors;
+      });
+    }
+
+    // Instant Password validation while typing
+    if (name === "password") {
+      const passwordError = validatePassword(value);
+
+      setErrors((prev) => {
+        const updatedErrors = { ...prev };
+
+        if (passwordError) {
+          updatedErrors.password = passwordError;
+        } else {
+          delete updatedErrors.password;
+        }
+
+        // Re-check Confirm Password whenever Password changes
+        if (form.confirmPassword) {
+          const confirmPasswordError = validateConfirmPassword(
+            form.confirmPassword,
+            value,
+          );
+
+          if (confirmPasswordError) {
+            updatedErrors.confirmPassword = confirmPasswordError;
+          } else {
+            delete updatedErrors.confirmPassword;
+          }
+        }
+
+        return updatedErrors;
+      });
+    }
+
+    // Instant Confirm Password validation while typing
+    if (name === "confirmPassword") {
+      const confirmPasswordError = validateConfirmPassword(
+        value,
+        form.password,
+      );
+
+      setErrors((prev) => {
+        const updatedErrors = { ...prev };
+
+        if (confirmPasswordError) {
+          updatedErrors.confirmPassword = confirmPasswordError;
+        } else {
+          delete updatedErrors.confirmPassword;
+        }
+
+        return updatedErrors;
+      });
+    }
+
+    // Instant Address validation while typing
+    if (name === "phase" || name === "block" || name === "lot") {
+      let addressError = "";
+
+      if (name === "phase") {
+        addressError = validateAddressNumber(String(newValue), "Phase");
+      }
+
+      if (name === "block") {
+        addressError = validateAddressNumber(String(newValue), "Block");
+      }
+
+      if (name === "lot") {
+        addressError = validateAddressNumber(String(newValue), "Lot");
+      }
+
+      setErrors((prev) => {
+        const updatedErrors = { ...prev };
+
+        if (addressError) {
+          updatedErrors[name] = addressError;
+        } else {
+          delete updatedErrors[name];
+        }
+
+        return updatedErrors;
+      });
+    }
   };
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const photo = e.target.files?.[0] ?? null;
+    const MAX_IMAGE_MB = 5;
+
+    let pictureError = "";
+
+    // Instant photo validation
+    if (!photo) {
+      pictureError = "Picture is required";
+    } else if (!isImageFile(photo)) {
+      pictureError = "Please upload a valid image file";
+    } else if (photo.size > MAX_IMAGE_MB * 1024 * 1024) {
+      pictureError = `Image must be less than ${MAX_IMAGE_MB}MB`;
+    }
+
+    setErrors((prev) => {
+      const updatedErrors = { ...prev };
+
+      if (pictureError) {
+        updatedErrors.picture = pictureError;
+      } else {
+        delete updatedErrors.picture;
+      }
+
+      return updatedErrors;
+    });
+
+    // Do not keep or preview an invalid photo.
+    if (pictureError) {
+      setForm((prev) => ({
+        ...prev,
+        picture: null,
+      }));
+
+      setImagePreview(null);
+
+      if (pictureInputRef.current) {
+        pictureInputRef.current.value = "";
+      }
+
+      return;
+    }
 
     setForm((prev) => ({
       ...prev,
@@ -335,9 +992,27 @@ export default function SignUpOwner() {
     }));
 
     if (photo) {
-      readFileAsDataURL(photo).then((res) => setImagePreview(res as string));
-    } else {
-      setImagePreview(null);
+      try {
+        const preview = await readFileAsDataURL(photo);
+        setImagePreview(preview);
+      } catch {
+        setErrors((prev) => ({
+          ...prev,
+          picture:
+            "Unable to read the selected image. Please choose another photo.",
+        }));
+
+        setForm((prev) => ({
+          ...prev,
+          picture: null,
+        }));
+
+        setImagePreview(null);
+
+        if (pictureInputRef.current) {
+          pictureInputRef.current.value = "";
+        }
+      }
     }
   };
 
@@ -374,18 +1049,41 @@ export default function SignUpOwner() {
   const errorClass = "mt-1 text-xs text-red-500 flex items-center gap-1";
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+    <div className="relative min-h-screen bg-gray-100 flex items-center justify-center p-4">
+      {/* Back Button */}
+      <button
+        type="button"
+        onClick={handleBack}
+        className="absolute top-6 left-6 flex items-center gap-2 px-4 py-2 rounded-lg
+                 text-gray-700 font-semibold hover:bg-gray-200
+                 transition cursor-pointer"
+      >
+        <span className="text-2xl">←</span>
+        <span>Back</span>
+      </button>
+
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-lg p-6 md:p-10">
-        <div className="flex flex-col items-center px-4">
+        <div className="flex flex-col items-center px-4 mb-8">
           <img
             src={Icon}
-            alt="Welcome"
+            alt="TerraDues"
             className="max-w-md size-28 object-contain fade-in"
           />
 
           <div className="flex gap-1 text-xl">
             <span className="font-bold text-green-700">TERRA</span>
             <span className="font-bold text-black">DUES</span>
+          </div>
+
+          {/* Registration Header */}
+          <div className="mt-6 text-center">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+              Homeowner Registration
+            </h1>
+
+            <p className="mt-2 text-sm text-gray-500">
+              Please provide your homeowner information to create your account.
+            </p>
           </div>
         </div>
 
@@ -399,62 +1097,120 @@ export default function SignUpOwner() {
             </h2>
           </div>
 
+          {/* First Name */}
           <div>
             <AppInput
               name="firstName"
               value={form.firstName}
               onChange={handleChange}
-              className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 ${
+              className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 transition-colors ${
                 errors.firstName
                   ? "border-red-400 focus:ring-red-500"
-                  : "border-gray-300 focus:ring-green-500"
+                  : form.firstName.trim()
+                    ? "border-green-500 focus:ring-green-500"
+                    : "border-gray-300 focus:ring-green-500"
               }`}
               placeholder="First Name"
             />
+
             {errors.firstName && (
-              <p className={errorClass}>{errors.firstName}</p>
+              <p className={errorClass}>
+                <AlertCircle size={12} />
+                {errors.firstName}
+              </p>
+            )}
+
+            {!errors.firstName && form.firstName.trim() && (
+              <p className="mt-1 text-xs text-green-600">Valid first name</p>
             )}
           </div>
 
+          {/* Middle Name */}
           <div>
             <AppInput
               name="middleName"
               value={form.middleName}
               onChange={handleChange}
-              className="w-full rounded-xl border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 transition-colors ${
+                errors.middleName
+                  ? "border-red-400 focus:ring-red-500"
+                  : form.middleName.trim()
+                    ? "border-green-500 focus:ring-green-500"
+                    : "border-gray-300 focus:ring-green-500"
+              }`}
               placeholder="Middle Name (optional)"
             />
+
+            {errors.middleName && (
+              <p className={errorClass}>
+                <AlertCircle size={12} />
+                {errors.middleName}
+              </p>
+            )}
+
+            {!errors.middleName && form.middleName.trim() && (
+              <p className="mt-1 text-xs text-green-600">Valid middle name</p>
+            )}
           </div>
 
+          {/* Last Name */}
           <div className="md:col-span-2">
             <AppInput
               name="lastName"
               value={form.lastName}
               onChange={handleChange}
-              className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 ${
+              className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 transition-colors ${
                 errors.lastName
                   ? "border-red-400 focus:ring-red-500"
-                  : "border-gray-300 focus:ring-green-500"
+                  : form.lastName.trim()
+                    ? "border-green-500 focus:ring-green-500"
+                    : "border-gray-300 focus:ring-green-500"
               }`}
               placeholder="Last Name"
             />
-            {errors.lastName && <p className={errorClass}>{errors.lastName}</p>}
+
+            {errors.lastName && (
+              <p className={errorClass}>
+                <AlertCircle size={12} />
+                {errors.lastName}
+              </p>
+            )}
+
+            {!errors.lastName && form.lastName.trim() && (
+              <p className="mt-1 text-xs text-green-600">Valid last name</p>
+            )}
           </div>
 
           <div>
             <AppInput
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={11}
               name="contactNumber"
               value={form.contactNumber}
               onChange={handleChange}
-              className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 ${
+              className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 transition-colors ${
                 errors.contactNumber
                   ? "border-red-400 focus:ring-red-500"
-                  : "border-gray-300 focus:ring-green-500"
+                  : /^09\d{9}$/.test(form.contactNumber)
+                    ? "border-green-500 focus:ring-green-500"
+                    : "border-gray-300 focus:ring-green-500"
               }`}
-              placeholder="Contact Number"
+              placeholder="09XXXXXXXXX"
             />
+
             {errors.contactNumber && (
-              <p className={errorClass}>{errors.contactNumber}</p>
+              <p className={errorClass}>
+                <AlertCircle size={12} />
+                {errors.contactNumber}
+              </p>
+            )}
+
+            {!errors.contactNumber && /^09\d{9}$/.test(form.contactNumber) && (
+              <p className="mt-1 text-xs text-green-600">
+                Valid Philippine mobile number
+              </p>
             )}
           </div>
 
@@ -509,14 +1265,30 @@ export default function SignUpOwner() {
               name="phase"
               value={form.phase}
               onChange={handleChange}
-              className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 ${
+              className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 transition-colors ${
                 errors.phase
                   ? "border-red-400 focus:ring-red-500"
-                  : "border-gray-300 focus:ring-green-500"
+                  : form.phase && !validateAddressNumber(form.phase, "Phase")
+                    ? "border-green-500 focus:ring-green-500"
+                    : "border-gray-300 focus:ring-green-500"
               }`}
               placeholder="Phase Number"
             />
-            {errors.phase && <p className={errorClass}>{errors.phase}</p>}
+
+            {errors.phase && (
+              <p className={errorClass}>
+                <AlertCircle size={12} />
+                {errors.phase}
+              </p>
+            )}
+
+            {!errors.phase &&
+              form.phase &&
+              !validateAddressNumber(form.phase, "Phase") && (
+                <p className="mt-1 text-xs text-green-600">
+                  Valid phase number
+                </p>
+              )}
           </div>
 
           <div>
@@ -527,14 +1299,30 @@ export default function SignUpOwner() {
               name="block"
               value={form.block}
               onChange={handleChange}
-              className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 ${
+              className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 transition-colors ${
                 errors.block
                   ? "border-red-400 focus:ring-red-500"
-                  : "border-gray-300 focus:ring-green-500"
+                  : form.block && !validateAddressNumber(form.block, "Block")
+                    ? "border-green-500 focus:ring-green-500"
+                    : "border-gray-300 focus:ring-green-500"
               }`}
               placeholder="Block Number"
             />
-            {errors.block && <p className={errorClass}>{errors.block}</p>}
+
+            {errors.block && (
+              <p className={errorClass}>
+                <AlertCircle size={12} />
+                {errors.block}
+              </p>
+            )}
+
+            {!errors.block &&
+              form.block &&
+              !validateAddressNumber(form.block, "Block") && (
+                <p className="mt-1 text-xs text-green-600">
+                  Valid block number
+                </p>
+              )}
           </div>
 
           <div>
@@ -545,14 +1333,28 @@ export default function SignUpOwner() {
               name="lot"
               value={form.lot}
               onChange={handleChange}
-              className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 ${
+              className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 transition-colors ${
                 errors.lot
                   ? "border-red-400 focus:ring-red-500"
-                  : "border-gray-300 focus:ring-green-500"
+                  : form.lot && !validateAddressNumber(form.lot, "Lot")
+                    ? "border-green-500 focus:ring-green-500"
+                    : "border-gray-300 focus:ring-green-500"
               }`}
               placeholder="Lot Number"
             />
-            {errors.lot && <p className={errorClass}>{errors.lot}</p>}
+
+            {errors.lot && (
+              <p className={errorClass}>
+                <AlertCircle size={12} />
+                {errors.lot}
+              </p>
+            )}
+
+            {!errors.lot &&
+              form.lot &&
+              !validateAddressNumber(form.lot, "Lot") && (
+                <p className="mt-1 text-xs text-green-600">Valid lot number</p>
+              )}
           </div>
 
           <div>
@@ -563,63 +1365,36 @@ export default function SignUpOwner() {
               name="familyMembers"
               value={form.familyMembers}
               onChange={handleChange}
-              className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 ${
+              className={`w-full rounded-xl border px-4 py-2 text-sm focus:outline-none focus:ring-2 transition-colors ${
                 errors.familyMembers
                   ? "border-red-400 focus:ring-red-500"
-                  : "border-gray-300 focus:ring-green-500"
+                  : form.familyMembers &&
+                      !validateFamilyMembers(form.familyMembers)
+                    ? "border-green-500 focus:ring-green-500"
+                    : "border-gray-300 focus:ring-green-500"
               }`}
               placeholder="Number of Family Members"
             />
+
             {errors.familyMembers && (
-              <p className={errorClass}>{errors.familyMembers}</p>
+              <p className={errorClass}>
+                <AlertCircle size={12} />
+                {errors.familyMembers}
+              </p>
             )}
+
+            {!errors.familyMembers &&
+              form.familyMembers &&
+              !validateFamilyMembers(form.familyMembers) && (
+                <p className="mt-1 text-xs text-green-600">
+                  Valid number of family members
+                </p>
+              )}
           </div>
 
           <div className="md:col-span-2 flex flex-wrap gap-4 text-sm text-gray-700">
-            <span className="font-medium">Occupancy Type:</span>
-
-            <label className="flex items-center gap-1 cursor-pointer">
-              <input
-                type="checkbox"
-                value="Occupied"
-                checked={form.occupancyType.includes("Occupied")}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setForm((prev) => ({
-                    ...prev,
-                    occupancyType: e.target.checked
-                      ? [...prev.occupancyType, value]
-                      : prev.occupancyType.filter((v) => v !== value),
-                  }));
-                }}
-              />
-              Occupied
-            </label>
-
-            <label className="flex items-center gap-1 cursor-pointer">
-              <input
-                type="checkbox"
-                value="For Rent"
-                checked={form.occupancyType.includes("For Rent")}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setForm((prev) => ({
-                    ...prev,
-                    occupancyType: e.target.checked
-                      ? [...prev.occupancyType, value]
-                      : prev.occupancyType.filter((v) => v !== value),
-                  }));
-                }}
-              />
-              For Rent
-            </label>
+            <span className="font-medium">Password</span>
           </div>
-
-          {errors.occupancyType && (
-            <p className="md:col-span-2 text-xs text-red-500">
-              Please select occupancy type
-            </p>
-          )}
 
           <div className="relative">
             <AppInput
@@ -627,10 +1402,12 @@ export default function SignUpOwner() {
               name="password"
               value={form.password}
               onChange={handleChange}
-              className={`w-full rounded-xl border px-4 py-2 pr-11 text-sm focus:outline-none focus:ring-2 ${
+              className={`w-full rounded-xl border px-4 py-2 pr-11 text-sm focus:outline-none focus:ring-2 transition-colors ${
                 errors.password
                   ? "border-red-400 focus:ring-red-500"
-                  : "border-gray-300 focus:ring-green-500"
+                  : form.password && !validatePassword(form.password)
+                    ? "border-green-500 focus:ring-green-500"
+                    : "border-gray-300 focus:ring-green-500"
               }`}
               placeholder="Password"
             />
@@ -638,14 +1415,24 @@ export default function SignUpOwner() {
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
-              className={`absolute right-3 ${
-                errors.password ? "top-1/3" : "top-1/2"
-              } -translate-y-1/2 text-gray-500 hover:text-gray-700`}
+              className="absolute right-3 top-5 -translate-y-1/2 text-gray-500 hover:text-gray-700 cursor-pointer"
+              aria-label={showPassword ? "Hide password" : "Show password"}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
 
-            {errors.password && <p className={errorClass}>{errors.password}</p>}
+            {errors.password && (
+              <p className={errorClass}>
+                <AlertCircle size={12} />
+                {errors.password}
+              </p>
+            )}
+
+            {!errors.password &&
+              form.password &&
+              !validatePassword(form.password) && (
+                <p className="mt-1 text-xs text-green-600">Valid password</p>
+              )}
           </div>
 
           <div className="relative">
@@ -654,10 +1441,16 @@ export default function SignUpOwner() {
               name="confirmPassword"
               value={form.confirmPassword}
               onChange={handleChange}
-              className={`w-full rounded-xl border px-4 py-2 pr-11 text-sm focus:outline-none focus:ring-2 ${
+              className={`w-full rounded-xl border px-4 py-2 pr-11 text-sm focus:outline-none focus:ring-2 transition-colors ${
                 errors.confirmPassword
                   ? "border-red-400 focus:ring-red-500"
-                  : "border-gray-300 focus:ring-green-500"
+                  : form.confirmPassword &&
+                      !validateConfirmPassword(
+                        form.confirmPassword,
+                        form.password,
+                      )
+                    ? "border-green-500 focus:ring-green-500"
+                    : "border-gray-300 focus:ring-green-500"
               }`}
               placeholder="Confirm Password"
             />
@@ -665,16 +1458,28 @@ export default function SignUpOwner() {
             <button
               type="button"
               onClick={() => setShowConfirmPassword((prev) => !prev)}
-              className={`absolute right-3 ${
-                errors.confirmPassword ? "top-1/3" : "top-1/2"
-              } -translate-y-1/2 text-gray-500 hover:text-gray-700`}
+              className="absolute right-3 top-5 -translate-y-1/2 text-gray-500 hover:text-gray-700 cursor-pointer"
+              aria-label={
+                showConfirmPassword
+                  ? "Hide confirm password"
+                  : "Show confirm password"
+              }
             >
               {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
 
             {errors.confirmPassword && (
-              <p className={errorClass}>{errors.confirmPassword}</p>
+              <p className={errorClass}>
+                <AlertCircle size={12} />
+                {errors.confirmPassword}
+              </p>
             )}
+
+            {!errors.confirmPassword &&
+              form.confirmPassword &&
+              !validateConfirmPassword(form.confirmPassword, form.password) && (
+                <p className="mt-1 text-xs text-green-600">Passwords match</p>
+              )}
           </div>
 
           <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -689,7 +1494,11 @@ export default function SignUpOwner() {
 
               <label
                 className={`flex h-9 w-full items-center gap-2 rounded-xl border px-4 text-sm cursor-pointer hover:bg-gray-50 ${
-                  errors.picture ? "border-red-400" : "border-gray-300"
+                  errors.picture
+                    ? "border-red-400"
+                    : form.picture
+                      ? "border-green-500"
+                      : "border-gray-300"
                 }`}
               >
                 <span className="flex size-6 items-center justify-center rounded-lg bg-green-100 text-green-600">
@@ -707,7 +1516,18 @@ export default function SignUpOwner() {
                 />
               </label>
 
-              {errors.picture && <p className={errorClass}>{errors.picture}</p>}
+              {errors.picture && (
+                <p className={errorClass}>
+                  <AlertCircle size={12} />
+                  {errors.picture}
+                </p>
+              )}
+
+              {!errors.picture && form.picture && (
+                <p className="mt-1 text-xs text-green-600">
+                  Valid photo • {Math.round(form.picture.size / 1024)} KB
+                </p>
+              )}
 
               {imagePreview && (
                 <div className="relative inline-block mt-2">
@@ -724,6 +1544,10 @@ export default function SignUpOwner() {
                         onClick={() => {
                           setImagePreview(null);
                           setForm((prev) => ({ ...prev, picture: null }));
+                          setErrors((prev) => ({
+                            ...prev,
+                            picture: "Picture is required",
+                          }));
 
                           if (pictureInputRef.current) {
                             pictureInputRef.current.value = "";
@@ -743,11 +1567,11 @@ export default function SignUpOwner() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700">
-                House Turnover Document
+                House Turnover Document (Optional)
               </label>
 
               <p className="min-h-8 text-xs text-gray-500">
-                Upload your house turnover document for verification.
+                Optional — upload your house turnover document if available.
               </p>
 
               <label

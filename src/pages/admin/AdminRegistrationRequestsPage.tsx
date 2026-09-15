@@ -735,16 +735,6 @@ export default function AdminRegistrationRequestsPage() {
                     />
 
                     <DetailRow
-                      label="Occupancy Type"
-                      value={
-                        "occupancyType" in selected &&
-                        Array.isArray(selected.occupancyType)
-                          ? selected.occupancyType.join(", ")
-                          : null
-                      }
-                    />
-
-                    <DetailRow
                       label="Available for Rent"
                       value={
                         "forRent" in selected ? Boolean(selected.forRent) : null

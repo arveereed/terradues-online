@@ -15,8 +15,24 @@ const ResidencySelection: React.FC = () => {
     }
   };
 
+  const handleBack = () => {
+    navigate(-1);
+  };
+
   return (
-    <div className="flex flex-col min-h-screen items-center justify-center bg-white px-4">
+    <div className="relative flex flex-col min-h-screen items-center justify-center bg-white px-4">
+      {/* Back Button */}
+      <button
+        type="button"
+        onClick={handleBack}
+        className="absolute top-6 left-6 flex items-center gap-2 px-4 py-2 rounded-lg
+                   text-gray-700 font-semibold hover:bg-gray-100
+                   transition cursor-pointer"
+      >
+        <span className="text-2xl">←</span>
+        <span>Back</span>
+      </button>
+
       <div className="w-full max-w-xs flex flex-col items-center gap-6">
         {/* Title */}
         <h2 className="text-2xl md:text-3xl font-bold text-black text-center">
@@ -52,15 +68,14 @@ const ResidencySelection: React.FC = () => {
         </button>
 
         {/* Proceed Button */}
-
         <button
           type="button"
           onClick={handleProceed}
           disabled={!selected}
-          className={`w-full slide-up delay-1 py-4 rounded-full font-semibold text-xl md:text-2xl text-white mt-6 transition cursor-pointer
+          className={`w-full slide-up delay-1 py-4 rounded-full font-semibold text-xl md:text-2xl text-white mt-6 transition
             ${
               selected
-                ? "bg-green-700 hover:bg-green-800"
+                ? "bg-green-700 hover:bg-green-800 cursor-pointer"
                 : "bg-gray-300 cursor-not-allowed"
             }`}
         >

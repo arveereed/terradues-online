@@ -14,7 +14,6 @@ export type UserDataSignUpOwnerType = {
   lot: string;
 
   familyMembers: string;
-  occupancyType: string[];
 
   forRent: boolean;
 
