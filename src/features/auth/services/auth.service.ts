@@ -832,6 +832,8 @@ export type AdminUpdateResidentPayload = {
   ownerContactNumber?: string;
   ownerAddress?: string;
   ownerNumberOccupants?: string;
+  picture?: string | null;
+  document?: string | null;
 };
 
 export const updateResidentByAdmin = async (
@@ -909,6 +911,12 @@ export const updateResidentByAdmin = async (
     address,
     updatedAt: serverTimestamp(),
   };
+
+  // Valid Government ID is required. Additional document is optional.
+  if (!payload.picture?.trim())
+    throw new Error("Valid Government ID is required.");
+  updates.picture = payload.picture.trim();
+  updates.document = payload.document?.trim() || null;
 
   // Email is intentionally excluded. Admins cannot change authentication email here.
   if (payload.userType === "Owner") {

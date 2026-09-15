@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ReactNode,
+} from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -12,6 +19,7 @@ import {
   RefreshCw,
   Search,
   SlidersHorizontal,
+  Trash2,
   UserRound,
   X,
 } from "lucide-react";
@@ -22,6 +30,7 @@ import {
   type AdminUpdateResidentPayload,
 } from "../../features/auth/services/auth.service";
 import type { User } from "../../types";
+import { uploadToCloudinary } from "../../lib/cloudinary/cloudinary";
 
 type Resident = {
   id: string;
@@ -680,6 +689,16 @@ function ResidentDetailsModal({
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [pictureFile, setPictureFile] = useState<File | null>(null);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [pictureMarkedForDeletion, setPictureMarkedForDeletion] =
+    useState(false);
+  const [documentMarkedForDeletion, setDocumentMarkedForDeletion] =
+    useState(false);
+  const [pictureError, setPictureError] = useState("");
+  const [documentError, setDocumentError] = useState("");
+  const pictureInputRef = useRef<HTMLInputElement | null>(null);
+  const documentInputRef = useRef<HTMLInputElement | null>(null);
   const [form, setForm] = useState<AdminUpdateResidentPayload>({
     firstName: resident.firstName,
     middleName: resident.middleName ?? "",
@@ -747,6 +766,12 @@ function ResidentDetailsModal({
       ownerAddress: resident.ownerAddress ?? "",
       ownerNumberOccupants: resident.ownerNumberOccupants ?? "",
     });
+    setPictureFile(null);
+    setDocumentFile(null);
+    setPictureMarkedForDeletion(false);
+    setDocumentMarkedForDeletion(false);
+    setPictureError("");
+    setDocumentError("");
     setSaveError(null);
     setIsEditing(false);
   };
@@ -810,6 +835,96 @@ function ResidentDetailsModal({
     return "";
   };
 
+  const MAX_IMAGE_MB = 5;
+  const MAX_DOC_MB = 10;
+
+  const isImageFile = (file: File) => file.type.startsWith("image/");
+
+  const isAllowedDocument = (file: File) => {
+    const allowedTypes = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ];
+    const allowedExtensions = [".pdf", ".doc", ".docx"];
+    return (
+      allowedTypes.includes(file.type) ||
+      allowedExtensions.some((ext) => file.name.toLowerCase().endsWith(ext))
+    );
+  };
+
+  const handlePictureChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    setSaveError(null);
+
+    if (!file) {
+      setPictureFile(null);
+      setPictureError(
+        resident.picture ? "" : "Valid Government ID is required",
+      );
+      return;
+    }
+    if (!isImageFile(file)) {
+      setPictureFile(null);
+      setPictureError("Please upload a valid image file");
+      event.target.value = "";
+      return;
+    }
+    if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
+      setPictureFile(null);
+      setPictureError(`Image must be less than ${MAX_IMAGE_MB}MB`);
+      event.target.value = "";
+      return;
+    }
+
+    setPictureFile(file);
+    setPictureMarkedForDeletion(false);
+    setPictureError("");
+  };
+
+  const handleDocumentChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    setSaveError(null);
+
+    if (!file) {
+      setDocumentFile(null);
+      setDocumentError("");
+      return;
+    }
+    if (!isAllowedDocument(file)) {
+      setDocumentFile(null);
+      setDocumentError("Document must be PDF, DOC, or DOCX");
+      event.target.value = "";
+      return;
+    }
+    if (file.size > MAX_DOC_MB * 1024 * 1024) {
+      setDocumentFile(null);
+      setDocumentError(`Document must be less than ${MAX_DOC_MB}MB`);
+      event.target.value = "";
+      return;
+    }
+
+    setDocumentFile(file);
+    setDocumentMarkedForDeletion(false);
+    setDocumentError("");
+  };
+
+  const handleDeletePicture = () => {
+    setPictureFile(null);
+    setPictureMarkedForDeletion(true);
+    setPictureError("Valid Government ID is required");
+    setSaveError(null);
+    if (pictureInputRef.current) pictureInputRef.current.value = "";
+  };
+
+  const handleDeleteDocument = () => {
+    setDocumentFile(null);
+    setDocumentMarkedForDeletion(true);
+    setDocumentError("");
+    setSaveError(null);
+    if (documentInputRef.current) documentInputRef.current.value = "";
+  };
+
   const fieldErrors = {
     firstName: validateName(form.firstName, "First name", true),
     middleName: validateName(form.middleName, "Middle name", false),
@@ -841,7 +956,14 @@ function ResidentDetailsModal({
         : "",
   };
 
-  const formIsValid = Object.values(fieldErrors).every((error) => !error);
+  const hasRequiredPicture = Boolean(
+    pictureFile || (resident.picture && !pictureMarkedForDeletion),
+  );
+  const formIsValid =
+    Object.values(fieldErrors).every((error) => !error) &&
+    hasRequiredPicture &&
+    !pictureError &&
+    !documentError;
   const validationMessage = (
     error: string,
     value: string,
@@ -863,7 +985,48 @@ function ResidentDetailsModal({
     setIsSaving(true);
     setSaveError(null);
     try {
-      await onSave(resident.id, form);
+      let pictureUrl = pictureMarkedForDeletion
+        ? null
+        : (resident.picture ?? null);
+      let documentUrl = documentMarkedForDeletion
+        ? null
+        : (resident.document ?? null);
+
+      if (pictureFile) {
+        pictureUrl = await uploadToCloudinary(
+          pictureFile,
+          "terradues/users/profile",
+          "image",
+        );
+        if (!pictureUrl)
+          throw new Error("Failed to upload Valid Government ID.");
+      }
+
+      if (!pictureUrl) {
+        setPictureError("Valid Government ID is required");
+        throw new Error("Valid Government ID is required.");
+      }
+
+      if (documentFile) {
+        documentUrl = await uploadToCloudinary(
+          documentFile,
+          "terradues/users/document",
+          "raw",
+        );
+        if (!documentUrl) throw new Error("Failed to upload document.");
+      }
+
+      await onSave(resident.id, {
+        ...form,
+        picture: pictureUrl,
+        document: documentUrl,
+      });
+      setPictureFile(null);
+      setDocumentFile(null);
+      setPictureMarkedForDeletion(false);
+      setDocumentMarkedForDeletion(false);
+      setPictureError("");
+      setDocumentError("");
       setIsEditing(false);
     } catch (error) {
       console.error("Failed to update resident:", error);
@@ -947,6 +1110,128 @@ function ResidentDetailsModal({
 
           {isEditing ? (
             <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <p className="text-sm font-bold text-zinc-900">
+                    Valid Government ID <span className="text-rose-600">*</span>
+                  </p>
+                  <p className="mt-1 text-xs font-medium text-zinc-500">
+                    Required. Image only, maximum 5MB.
+                  </p>
+                  <input
+                    ref={pictureInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePictureChange}
+                    className="hidden"
+                  />
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => pictureInputRef.current?.click()}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700"
+                    >
+                      <ImageIcon size={16} />
+                      {pictureFile
+                        ? "Change Selected ID"
+                        : resident.picture && !pictureMarkedForDeletion
+                          ? "Replace Valid ID"
+                          : "Upload Valid ID"}
+                    </button>
+
+                    {(resident.picture || pictureFile) &&
+                      !pictureMarkedForDeletion && (
+                        <button
+                          type="button"
+                          onClick={handleDeletePicture}
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+                        >
+                          <Trash2 size={16} />
+                          Delete ID
+                        </button>
+                      )}
+                  </div>
+                  <p className="mt-2 break-all text-xs font-medium text-zinc-600">
+                    {pictureFile
+                      ? pictureFile.name
+                      : pictureMarkedForDeletion
+                        ? "Current Valid ID marked for deletion. Upload a replacement to continue."
+                        : resident.picture
+                          ? "Current Valid ID will be kept unless replaced or deleted."
+                          : "No Valid ID uploaded."}
+                  </p>
+                  {pictureError ? (
+                    <p className="mt-1 text-xs font-semibold text-rose-600">
+                      {pictureError}
+                    </p>
+                  ) : hasRequiredPicture ? (
+                    <p className="mt-1 text-xs font-semibold text-emerald-600">
+                      Valid Government ID provided
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs font-semibold text-rose-600">
+                      Valid Government ID is required
+                    </p>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <p className="text-sm font-bold text-zinc-900">
+                    Additional Document
+                  </p>
+                  <p className="mt-1 text-xs font-medium text-zinc-500">
+                    Optional. PDF, DOC, or DOCX, maximum 10MB.
+                  </p>
+                  <input
+                    ref={documentInputRef}
+                    type="file"
+                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={handleDocumentChange}
+                    className="hidden"
+                  />
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => documentInputRef.current?.click()}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 text-sm font-semibold text-white hover:bg-black"
+                    >
+                      <FileText size={16} />
+                      {documentFile
+                        ? "Change Selected Document"
+                        : resident.document && !documentMarkedForDeletion
+                          ? "Replace Document"
+                          : "Upload Document"}
+                    </button>
+
+                    {(resident.document || documentFile) &&
+                      !documentMarkedForDeletion && (
+                        <button
+                          type="button"
+                          onClick={handleDeleteDocument}
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+                        >
+                          <Trash2 size={16} />
+                          Delete Document
+                        </button>
+                      )}
+                  </div>
+                  <p className="mt-2 break-all text-xs font-medium text-zinc-600">
+                    {documentFile
+                      ? documentFile.name
+                      : documentMarkedForDeletion
+                        ? "Current document marked for deletion. This field is optional."
+                        : resident.document
+                          ? "Current document will be kept unless replaced or deleted."
+                          : "No document uploaded (optional)."}
+                  </p>
+                  {documentError && (
+                    <p className="mt-1 text-xs font-semibold text-rose-600">
+                      {documentError}
+                    </p>
+                  )}
+                </div>
+              </div>
+
               <div>
                 <AppInput
                   label="First Name"
