@@ -31,6 +31,7 @@ const navItems: NavItem[] = [
     to: "/admin/users",
     icon: Users,
   },
+
   {
     label: "Registration Requests",
     to: "/admin/registration-requests",
@@ -85,9 +86,24 @@ export default function AdminLayout() {
     }
   };
 
+  /*
+   * IMPORTANT:
+   *
+   * /admin/users/archive starts with /admin/users.
+   *
+   * If we simply used startsWith() for List of Residents,
+   * both List of Residents and Resident Archive would appear
+   * active at the same time.
+   *
+   * Therefore List of Residents uses an exact match.
+   */
   const isActive = (to: string) => {
     if (to === "/admin") {
       return location.pathname === "/admin";
+    }
+
+    if (to === "/admin/users") {
+      return location.pathname === "/admin/users";
     }
 
     return location.pathname.startsWith(to);

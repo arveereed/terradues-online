@@ -1,4 +1,5 @@
 export type ApprovalStatus = "pending" | "approved" | "denied";
+export type AccountStatus = "active" | "archived";
 
 export type UserDataSignUpOwnerType = {
   userType: "Owner" | "Renter";
@@ -22,6 +23,14 @@ export type UserDataSignUpOwnerType = {
   address: string;
   role?: "resident" | "admin";
   approvalStatus?: ApprovalStatus;
+
+  /*
+   * Resident account lifecycle.
+   *
+   * Existing residents may not have this field.
+   * Missing accountStatus is treated as active.
+   */
+  accountStatus?: AccountStatus;
 };
 
 export type UserDataSignUpRenterType = Omit<
@@ -42,8 +51,26 @@ type FirestoreTimestamp = {
 };
 
 type ApprovalMetadata = {
+  /*
+   * ACTIVE / ARCHIVED
+   */
+  accountStatus?: AccountStatus;
+
+  /*
+   * Set when an admin deletes/archives the resident.
+   */
+  archivedAt?: FirestoreTimestamp;
+
+  /*
+   * Set to 30 days after archivedAt.
+   * The server cleanup uses this timestamp to determine
+   * when the account can be permanently deleted.
+   */
+  scheduledDeletionAt?: FirestoreTimestamp;
+
   approvedAt?: FirestoreTimestamp;
   approvedBy?: string;
+
   deniedAt?: FirestoreTimestamp;
   deniedBy?: string;
   denialReason?: string;

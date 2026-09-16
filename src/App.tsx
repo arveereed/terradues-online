@@ -9,6 +9,7 @@ import SignUpRenter from "./pages/auth/SignUpRenter";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import RegistrationPendingPage from "./pages/auth/RegistrationPendingPage";
 import RegistrationDeniedPage from "./pages/auth/RegistrationDeniedPage";
+import AccountArchivedPage from "./pages/auth/AccountArchivedPage";
 
 import AppLoader from "./components/AppLoader";
 import ErrorNotFound from "./pages/ErrorNotFound";
@@ -32,6 +33,7 @@ import AdminPaymentStatusPage from "./pages/admin/AdminPaymentStatusPage";
 import AdminPaymentHistoryPage from "./pages/admin/AdminPaymentHistoryPage";
 import AdminRegistrationRequestsPage from "./pages/admin/AdminRegistrationRequestsPage";
 import AdminSummaryReportPage from "./pages/admin/AdminSummaryReportPage";
+import AdminResidentArchivePage from "./pages/admin/AdminResidentArchivePage";
 
 import { useFirestoreUser } from "./features/auth/hooks/useFirestoreUser";
 
@@ -64,7 +66,23 @@ function App() {
     ? (firestoreUser.approvalStatus ?? "approved")
     : "pending";
 
-  const isUser = isSignedIn && !isAdmin && approvalStatus === "approved";
+  /*
+   * Archived residents remain authenticated by Clerk during
+   * the 30-day archive period.
+   *
+   * They are blocked from normal resident routes and sent to
+   * /account-archived instead.
+   */
+  const isArchivedUser =
+    isSignedIn && !isAdmin && firestoreUser?.accountStatus === "archived";
+
+  /*
+   * Only active + approved residents can access /app.
+   *
+   * Existing users without accountStatus are treated as active.
+   */
+  const isUser =
+    isSignedIn && !isAdmin && approvalStatus === "approved" && !isArchivedUser;
 
   const isPendingUser = isSignedIn && !isAdmin && approvalStatus === "pending";
 
@@ -78,7 +96,7 @@ function App() {
 
   return (
     <Routes>
-      {/* Root redirect */}
+      {/* ROOT REDIRECT */}
       <Route
         path="/"
         element={
@@ -90,13 +108,15 @@ function App() {
             <Navigate to="/registration-pending" replace />
           ) : isDeniedUser ? (
             <Navigate to="/registration-denied" replace />
+          ) : isArchivedUser ? (
+            <Navigate to="/account-archived" replace />
           ) : (
             <Navigate to="/app" replace />
           )
         }
       />
 
-      {/* Guest-only authentication pages */}
+      {/* GUEST-ONLY AUTHENTICATION PAGES */}
       <Route element={<RequireGuest isGuest={isGuest} redirectTo="/" />}>
         <Route path="/sign-in" element={<SignIn />} />
 
@@ -109,7 +129,7 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
       </Route>
 
-      {/* Pending resident */}
+      {/* PENDING RESIDENT */}
       <Route element={<RequireAuth isAllowed={isPendingUser} redirectTo="/" />}>
         <Route
           path="/registration-pending"
@@ -117,7 +137,7 @@ function App() {
         />
       </Route>
 
-      {/* Denied resident */}
+      {/* DENIED RESIDENT */}
       <Route element={<RequireAuth isAllowed={isDeniedUser} redirectTo="/" />}>
         <Route
           path="/registration-denied"
@@ -125,7 +145,14 @@ function App() {
         />
       </Route>
 
-      {/* Approved resident routes */}
+      {/* ARCHIVED RESIDENT */}
+      <Route
+        element={<RequireAuth isAllowed={isArchivedUser} redirectTo="/" />}
+      >
+        <Route path="/account-archived" element={<AccountArchivedPage />} />
+      </Route>
+
+      {/* APPROVED ACTIVE RESIDENT ROUTES */}
       <Route element={<RequireAuth isAllowed={isUser} redirectTo="/sign-in" />}>
         <Route path="/app" element={<UserLayout />}>
           <Route index element={<HomePage />} />
@@ -138,12 +165,14 @@ function App() {
         </Route>
       </Route>
 
-      {/* Admin routes */}
+      {/* ADMIN ROUTES */}
       <Route element={<RequireAuth isAllowed={isAdminUser} redirectTo="/" />}>
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<AdminHomePage />} />
 
           <Route path="users" element={<AdminListOfResidentsPage />} />
+
+          <Route path="users/archive" element={<AdminResidentArchivePage />} />
 
           <Route
             path="registration-requests"

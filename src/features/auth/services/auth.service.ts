@@ -96,7 +96,11 @@ export const getUserById = async (userId: string | undefined) => {
        * Pending and denied registrations should not receive normal
        * resident payment records yet.
        */
-      if (isResidentPaymentUser(user) && approvalStatus === "approved") {
+      if (
+        isResidentPaymentUser(user) &&
+        approvalStatus === "approved" &&
+        user.accountStatus !== "archived"
+      ) {
         return ensureCurrentMonthPaymentRecord(user);
       }
 
@@ -117,10 +121,66 @@ export const getAllUsers = async () => {
   const usersCollection = collection(db, "users");
   const querySnapshot = await getDocs(usersCollection);
 
+  // Archived residents are intentionally hidden from all normal admin
+  // pages (dashboard, payments, history, registration requests, etc.).
+  return querySnapshot.docs
+    .map((docSnap) => ({
+      ...(docSnap.data() as User),
+      id: docSnap.id,
+    }))
+    .filter((user) => user.accountStatus !== "archived");
+};
+
+export const getArchivedResidents = async () => {
+  const usersCollection = collection(db, "users");
+  const archivedQuery = query(
+    usersCollection,
+    where("accountStatus", "==", "archived"),
+  );
+  const querySnapshot = await getDocs(archivedQuery);
+
   return querySnapshot.docs.map((docSnap) => ({
     ...(docSnap.data() as User),
     id: docSnap.id,
   }));
+};
+
+export const archiveResident = async (residentId: string) => {
+  const userRef = doc(db, "users", residentId);
+  const userSnap = await getDoc(userRef);
+
+  if (!userSnap.exists()) throw new Error("Resident record not found.");
+
+  const user = userSnap.data() as User;
+  if (user.userType !== "Owner" && user.userType !== "Renter") {
+    throw new Error("Only resident accounts can be archived.");
+  }
+
+  const archivedAt = Timestamp.now();
+  const scheduledDeletionAt = Timestamp.fromMillis(
+    archivedAt.toMillis() + 30 * 24 * 60 * 60 * 1000,
+  );
+
+  await updateDoc(userRef, {
+    accountStatus: "archived",
+    archivedAt,
+    scheduledDeletionAt,
+    updatedAt: serverTimestamp(),
+  });
+};
+
+export const restoreArchivedResident = async (residentId: string) => {
+  const userRef = doc(db, "users", residentId);
+  const userSnap = await getDoc(userRef);
+
+  if (!userSnap.exists()) throw new Error("Archived resident not found.");
+
+  await updateDoc(userRef, {
+    accountStatus: "active",
+    archivedAt: deleteField(),
+    scheduledDeletionAt: deleteField(),
+    updatedAt: serverTimestamp(),
+  });
 };
 
 export type RegistrationDecision = "approved" | "denied";

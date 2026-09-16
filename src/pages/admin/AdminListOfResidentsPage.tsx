@@ -6,7 +6,9 @@ import {
   type ChangeEvent,
   type ReactNode,
 } from "react";
+import { useNavigate } from "react-router-dom";
 import {
+  Archive,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -25,6 +27,7 @@ import {
 } from "lucide-react";
 import AppInput from "../../components/AppInput";
 import {
+  archiveResident,
   getAllUsers,
   updateResidentByAdmin,
   type AdminUpdateResidentPayload,
@@ -193,6 +196,7 @@ const getPageNumbers = (currentPage: number, totalPages: number) => {
 };
 
 export default function AdminListOfResidentsPage() {
+  const navigate = useNavigate();
   const [residents, setResidents] = useState<Resident[]>([]);
   const [selectedResident, setSelectedResident] = useState<Resident | null>(
     null,
@@ -351,6 +355,28 @@ export default function AdminListOfResidentsPage() {
     });
   };
 
+  const handleArchiveResident = async (resident: Resident) => {
+    const name = getResidentName(resident) || "this resident";
+    const confirmed = window.confirm(
+      `Archive ${name}? The resident will be removed from active lists and permanently deleted after 30 days unless restored.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      setDbError(null);
+      await archiveResident(resident.id);
+      setResidents((current) =>
+        current.filter((item) => item.id !== resident.id),
+      );
+      if (selectedResident?.id === resident.id) setSelectedResident(null);
+    } catch (error) {
+      console.error("Failed to archive resident:", error);
+      setDbError(
+        error instanceof Error ? error.message : "Failed to archive resident.",
+      );
+    }
+  };
+
   const saveResidentChanges = async (
     residentId: string,
     payload: AdminUpdateResidentPayload,
@@ -385,15 +411,25 @@ export default function AdminListOfResidentsPage() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void loadResidents()}
-          disabled={loading}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
-          Refresh
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => navigate("/admin/users/archive")}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-5 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100"
+          >
+            <Archive size={17} />
+            Archive
+          </button>
+          <button
+            type="button"
+            onClick={() => void loadResidents()}
+            disabled={loading}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
+            Refresh
+          </button>
+        </div>
       </header>
 
       {dbError && (
@@ -523,13 +559,24 @@ export default function AdminListOfResidentsPage() {
                       </td>
 
                       <td className="whitespace-nowrap px-5 py-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedResident(resident)}
-                          className="inline-flex items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-black"
-                        >
-                          View Details
-                        </button>
+                        <div className="inline-flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedResident(resident)}
+                            className="inline-flex items-center justify-center rounded-xl bg-zinc-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-black"
+                          >
+                            View Details
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleArchiveResident(resident)}
+                            className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
+                            title="Archive resident for 30 days"
+                          >
+                            <Trash2 size={14} />
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
