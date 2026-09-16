@@ -17,6 +17,7 @@ import {
   Mail,
   MapPin,
   Pencil,
+  UserPlus,
   Phone,
   RefreshCw,
   Search,
@@ -422,6 +423,14 @@ export default function AdminListOfResidentsPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => navigate("/admin/users/new")}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+          >
+            <UserPlus size={17} />
+            Register New Resident
+          </button>
           <button
             type="button"
             onClick={() => navigate("/admin/users/archive")}

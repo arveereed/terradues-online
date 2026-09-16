@@ -31,7 +31,15 @@ export default function UserLayout() {
   const { data } = useFirestoreUser(clerkUser?.id);
 
   const [open, setOpen] = useState(false);
-  const userName = data?.fullName;
+
+  // Supports both normal registration and admin-created residents.
+  const userName =
+    data?.fullName ||
+    [data?.firstName, data?.lastName].filter(Boolean).join(" ") ||
+    clerkUser?.fullName ||
+    [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(" ") ||
+    clerkUser?.firstName ||
+    "Resident";
 
   // Lock body scroll when sidebar is open on mobile
   useEffect(() => {

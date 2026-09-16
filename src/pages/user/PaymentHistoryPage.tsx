@@ -391,6 +391,7 @@ function Pagination({ page, totalPages, onPageChange }: PaginationProps) {
 
 export default function PaymentHistory({}: Props) {
   const { user: clerkUser, isLoaded } = useUser();
+
   const {
     data: user,
     isLoading,
@@ -398,6 +399,14 @@ export default function PaymentHistory({}: Props) {
     refetch,
     isRefetching,
   } = useFirestoreUser(clerkUser?.id);
+
+  const displayName =
+    user?.fullName ||
+    [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
+    clerkUser?.fullName ||
+    [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(" ") ||
+    clerkUser?.firstName ||
+    "Resident";
 
   const history = useMemo(() => getPaymentHistoryFromUser(user), [user]);
 
@@ -455,7 +464,7 @@ export default function PaymentHistory({}: Props) {
       <section className="rounded-3xl bg-emerald-700 p-5 text-white shadow-sm ring-1 ring-emerald-600/30 sm:p-7">
         <p className="text-xs text-emerald-50/90">Good Day!</p>
         <p className="mt-1 text-lg font-extrabold tracking-tight sm:text-xl">
-          {loading ? "Loading..." : user?.fullName || "Resident"}
+          {loading ? "Loading..." : displayName}
         </p>
         <p className="mt-1 text-xs text-emerald-50/80">
           {loading

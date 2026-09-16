@@ -29,6 +29,7 @@ import SettingsPage from "./pages/user/SettingsPage";
 // Admin pages
 import AdminHomePage from "./pages/admin/AdminHomePage";
 import AdminListOfResidentsPage from "./pages/admin/AdminListOfResidentsPage";
+import AdminRegisterResidentPage from "./pages/admin/AdminRegisterResidentPage";
 import AdminPaymentStatusPage from "./pages/admin/AdminPaymentStatusPage";
 import AdminPaymentHistoryPage from "./pages/admin/AdminPaymentHistoryPage";
 import AdminRegistrationRequestsPage from "./pages/admin/AdminRegistrationRequestsPage";
@@ -171,6 +172,8 @@ function App() {
           <Route index element={<AdminHomePage />} />
 
           <Route path="users" element={<AdminListOfResidentsPage />} />
+
+          <Route path="users/new" element={<AdminRegisterResidentPage />} />
 
           <Route path="users/archive" element={<AdminResidentArchivePage />} />
 
