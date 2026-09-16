@@ -60,6 +60,8 @@ export default function AdminResidentArchivePage() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [residentToRestore, setResidentToRestore] =
+    useState<ArchivedResident | null>(null);
 
   const loadArchive = async () => {
     setLoading(true);
@@ -99,16 +101,6 @@ export default function AdminResidentArchivePage() {
   }, [query, residents]);
 
   const restore = async (resident: ArchivedResident) => {
-    if (
-      !window.confirm(
-        `Restore ${
-          fullName(resident) || "this resident"
-        } to the active residents list?`,
-      )
-    ) {
-      return;
-    }
-
     setRestoringId(resident.id);
     setError(null);
 
@@ -118,6 +110,7 @@ export default function AdminResidentArchivePage() {
       setResidents((current) =>
         current.filter((item) => item.id !== resident.id),
       );
+      setResidentToRestore(null);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to restore resident.",
@@ -265,7 +258,7 @@ export default function AdminResidentArchivePage() {
                       <td className="px-5 py-4 text-right">
                         <button
                           type="button"
-                          onClick={() => void restore(resident)}
+                          onClick={() => setResidentToRestore(resident)}
                           disabled={restoringId === resident.id}
                           className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
                         >
@@ -284,6 +277,86 @@ export default function AdminResidentArchivePage() {
           </div>
         )}
       </section>
+
+      {residentToRestore && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/55 p-4 backdrop-blur-sm"
+          onClick={() => {
+            if (!restoringId) setResidentToRestore(null);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="restore-resident-title"
+            className="w-full max-w-md overflow-hidden rounded-3xl border border-white/70 bg-white shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="p-6 sm:p-7">
+              <div className="flex items-start gap-4">
+                <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
+                  <ArchiveRestore size={23} />
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-600">
+                    Restore Resident
+                  </p>
+                  <h2
+                    id="restore-resident-title"
+                    className="mt-1 text-xl font-bold tracking-tight text-zinc-950"
+                  >
+                    Restore this resident?
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-zinc-500">
+                    <span className="font-semibold text-zinc-800">
+                      {fullName(residentToRestore) || "This resident"}
+                    </span>{" "}
+                    will be moved back to the active residents list and will no
+                    longer be scheduled for permanent deletion.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+                <div className="flex gap-3">
+                  <Clock3
+                    className="mt-0.5 shrink-0 text-emerald-600"
+                    size={18}
+                  />
+                  <p className="text-sm font-medium leading-5 text-emerald-900">
+                    The resident's account and existing information will become
+                    active again after restoration.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-zinc-100 bg-zinc-50/80 p-4 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setResidentToRestore(null)}
+                disabled={Boolean(restoringId)}
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-zinc-200 bg-white px-5 text-sm font-semibold text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void restore(residentToRestore)}
+                disabled={Boolean(restoringId)}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <ArchiveRestore
+                  size={17}
+                  className={restoringId ? "animate-pulse" : ""}
+                />
+                {restoringId ? "Restoring..." : "Restore Resident"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

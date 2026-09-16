@@ -202,6 +202,10 @@ export default function AdminListOfResidentsPage() {
     null,
   );
   const [filePreview, setFilePreview] = useState<FilePreviewState | null>(null);
+  const [residentToArchive, setResidentToArchive] = useState<Resident | null>(
+    null,
+  );
+  const [isArchiving, setIsArchiving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
 
@@ -355,25 +359,31 @@ export default function AdminListOfResidentsPage() {
     });
   };
 
-  const handleArchiveResident = async (resident: Resident) => {
-    const name = getResidentName(resident) || "this resident";
-    const confirmed = window.confirm(
-      `Archive ${name}? The resident will be removed from active lists and permanently deleted after 30 days unless restored.`,
-    );
-    if (!confirmed) return;
+  const handleArchiveResident = (resident: Resident) => {
+    setResidentToArchive(resident);
+  };
+
+  const confirmArchiveResident = async () => {
+    if (!residentToArchive || isArchiving) return;
+
+    const residentId = residentToArchive.id;
 
     try {
+      setIsArchiving(true);
       setDbError(null);
-      await archiveResident(resident.id);
+      await archiveResident(residentId);
       setResidents((current) =>
-        current.filter((item) => item.id !== resident.id),
+        current.filter((item) => item.id !== residentId),
       );
-      if (selectedResident?.id === resident.id) setSelectedResident(null);
+      if (selectedResident?.id === residentId) setSelectedResident(null);
+      setResidentToArchive(null);
     } catch (error) {
       console.error("Failed to archive resident:", error);
       setDbError(
         error instanceof Error ? error.message : "Failed to archive resident.",
       );
+    } finally {
+      setIsArchiving(false);
     }
   };
 
@@ -569,7 +579,7 @@ export default function AdminListOfResidentsPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => void handleArchiveResident(resident)}
+                            onClick={() => handleArchiveResident(resident)}
                             className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
                             title="Archive resident for 30 days"
                           >
@@ -613,6 +623,139 @@ export default function AdminListOfResidentsPage() {
           onClose={() => setFilePreview(null)}
         />
       )}
+
+      {residentToArchive && (
+        <ArchiveResidentModal
+          resident={residentToArchive}
+          isArchiving={isArchiving}
+          onCancel={() => {
+            if (!isArchiving) setResidentToArchive(null);
+          }}
+          onConfirm={() => void confirmArchiveResident()}
+        />
+      )}
+    </div>
+  );
+}
+
+function ArchiveResidentModal({
+  resident,
+  isArchiving,
+  onCancel,
+  onConfirm,
+}: {
+  resident: Resident;
+  isArchiving: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const name = getResidentName(resident) || "this resident";
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !isArchiving) onCancel();
+    };
+
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [isArchiving, onCancel]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-zinc-950/55 p-4 backdrop-blur-sm"
+      onClick={() => {
+        if (!isArchiving) onCancel();
+      }}
+    >
+      <div
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="archive-resident-title"
+        aria-describedby="archive-resident-description"
+        className="w-full max-w-md overflow-hidden rounded-3xl border border-white/70 bg-white shadow-2xl shadow-zinc-950/20"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="p-6 sm:p-7">
+          <div className="flex items-start gap-4">
+            <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-rose-50 text-rose-600 ring-1 ring-rose-100">
+              <Trash2 size={22} strokeWidth={2.2} />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-rose-600">
+                Archive Resident
+              </p>
+              <h2
+                id="archive-resident-title"
+                className="mt-1 text-xl font-bold tracking-tight text-zinc-950"
+              >
+                Delete {name}?
+              </h2>
+              <p
+                id="archive-resident-description"
+                className="mt-2 text-sm font-medium leading-6 text-zinc-600"
+              >
+                This resident will be removed from all active resident lists and
+                moved to the archive.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={isArchiving}
+              className="grid size-9 shrink-0 place-items-center rounded-xl text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Close delete confirmation"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <div className="flex gap-3">
+              <Archive size={18} className="mt-0.5 shrink-0 text-amber-700" />
+              <div>
+                <p className="text-sm font-bold text-amber-900">
+                  You can still restore this resident
+                </p>
+                <p className="mt-1 text-xs font-medium leading-5 text-amber-800">
+                  The resident stays in the archive for 30 days. After that, the
+                  resident is permanently deleted if not restored.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={isArchiving}
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-zinc-200 bg-white px-5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={isArchiving}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-rose-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isArchiving ? (
+                <>
+                  <RefreshCw size={16} className="animate-spin" />
+                  Archiving...
+                </>
+              ) : (
+                <>
+                  <Trash2 size={16} />
+                  Delete Resident
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
