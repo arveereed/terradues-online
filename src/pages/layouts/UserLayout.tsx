@@ -244,7 +244,6 @@ export default function UserLayout() {
 
         {/* Main Content */}
         <main className="w-full">
-          <div className="pointer-events-none fixed inset-x-0 top-0 h-64 bg-linear-to-b from-emerald-50/70 to-transparent" />
           <Outlet />
         </main>
       </div>

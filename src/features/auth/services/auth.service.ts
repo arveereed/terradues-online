@@ -1027,6 +1027,17 @@ export type UpdateUserProfilePayload = {
   lastName: string;
   contactNumber: string;
   gender: string;
+  phase: string;
+  block: string;
+  lot: string;
+  userType: "Owner" | "Renter";
+  familyMembers?: string;
+  ownerName?: string;
+  ownerContactNumber?: string;
+  ownerAddress?: string;
+  ownerNumberOccupants?: string;
+  picture?: string | null;
+  document?: string | null;
 };
 
 export type ResubmitDeniedRegistrationPayload = {
@@ -1229,21 +1240,86 @@ export const updateUserProfile = async (
   payload: UpdateUserProfilePayload,
 ) => {
   const userRef = doc(db, "users", docId);
-
-  const fullName = [payload.firstName, payload.middleName, payload.lastName]
-    .filter(Boolean)
-    .join(" ");
-
-  await updateDoc(userRef, {
-    ...payload,
-    fullName,
-    updatedAt: serverTimestamp(),
-  });
-
-  return {
-    ...payload,
-    fullName,
+  const firstName = payload.firstName.trim();
+  const middleName = payload.middleName.trim();
+  const lastName = payload.lastName.trim();
+  const contactNumber = payload.contactNumber.trim();
+  const gender = payload.gender.trim();
+  const phase = payload.phase.trim();
+  const block = payload.block.trim();
+  const lot = payload.lot.trim();
+  const validateName = (value: string, label: string, required = true) => {
+    if (!value) {
+      if (required) throw new Error(`${label} is required.`);
+      return;
+    }
+    if (value.length < 2)
+      throw new Error(`${label} must be at least 2 characters.`);
+    if (!/^[A-Za-zÀ-ÖØ-öø-ÿ' -]+$/.test(value))
+      throw new Error(`${label} contains invalid characters.`);
   };
+  const validateContact = (value: string, label = "Contact number") => {
+    if (!/^09\d{9}$/.test(value))
+      throw new Error(
+        `${label} must be a valid 11-digit Philippine mobile number starting with 09.`,
+      );
+  };
+  const validateNumber = (value: string, label: string) => {
+    if (!/^\d+$/.test(value) || Number(value) <= 0)
+      throw new Error(`${label} must be a number greater than 0.`);
+  };
+  validateName(firstName, "First name");
+  validateName(middleName, "Middle name", false);
+  validateName(lastName, "Last name");
+  validateContact(contactNumber);
+  if (!gender) throw new Error("Gender is required.");
+  validateNumber(phase, "Phase");
+  validateNumber(block, "Block");
+  validateNumber(lot, "Lot");
+  if (!payload.picture) throw new Error("Valid Government ID is required.");
+  if (payload.userType === "Owner")
+    validateNumber(
+      (payload.familyMembers ?? "").trim(),
+      "Number of family members",
+    );
+  else {
+    validateName((payload.ownerName ?? "").trim(), "Owner's name");
+    validateContact(
+      (payload.ownerContactNumber ?? "").trim(),
+      "Owner's contact number",
+    );
+    if (!(payload.ownerAddress ?? "").trim())
+      throw new Error("Owner's address is required.");
+    validateNumber(
+      (payload.ownerNumberOccupants ?? "").trim(),
+      "Number of occupants",
+    );
+  }
+  const fullName = [firstName, middleName, lastName].filter(Boolean).join(" ");
+  const updates: Record<string, unknown> = {
+    firstName,
+    middleName,
+    lastName,
+    fullName,
+    contactNumber,
+    gender,
+    phase,
+    block,
+    lot,
+    picture: payload.picture,
+    document: payload.document ?? null,
+    updatedAt: serverTimestamp(),
+  };
+  if (payload.userType === "Owner")
+    updates.familyMembers = (payload.familyMembers ?? "").trim();
+  else {
+    updates.ownerName = (payload.ownerName ?? "").trim();
+    updates.ownerContactNumber = (payload.ownerContactNumber ?? "").trim();
+    updates.ownerAddress = (payload.ownerAddress ?? "").trim();
+    updates.ownerNumberOccupants = (payload.ownerNumberOccupants ?? "").trim();
+  }
+  await updateDoc(userRef, updates);
+  return updates;
 };
 
 export type ReportProblemPayload = {
