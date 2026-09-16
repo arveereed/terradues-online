@@ -96,11 +96,30 @@ if (getApps().length === 0) {
 
 const db = getFirestore();
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://terradues-online.vercel.app",
+];
+
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: (origin, callback) => {
+      // Allow requests without an Origin header
+      // such as Render health checks and server-to-server requests.
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`CORS blocked origin: ${origin}`));
+    },
+    credentials: true,
   }),
 );
+
 app.use(express.json({ limit: "1mb" }));
 
 app.get("/health", (_req, res) => {
@@ -262,12 +281,10 @@ app.post("/api/admin/residents", requireAdmin, async (req, res) => {
     .limit(1)
     .get();
   if (!existing.empty) {
-    res
-      .status(409)
-      .json({
-        success: false,
-        message: "A resident with this email already exists.",
-      });
+    res.status(409).json({
+      success: false,
+      message: "A resident with this email already exists.",
+    });
     return;
   }
 
