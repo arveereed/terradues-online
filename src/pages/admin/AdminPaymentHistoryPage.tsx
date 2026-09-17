@@ -15,6 +15,7 @@ import {
   isApprovedResidentUser,
 } from "../../features/auth/services/auth.service";
 import type { User } from "../../types";
+import { getAppDate } from "../../lib/app-date";
 
 type PaymentStatus = "Paid" | "Not Paid";
 type StatusFilter = "All" | PaymentStatus;
@@ -108,7 +109,7 @@ const toLotNumber = (value: unknown) => {
 };
 
 const getCurrentMonthKey = () => {
-  const now = new Date();
+  const now = getAppDate();
 
   const parts = new Intl.DateTimeFormat("en-PH", {
     timeZone: "Asia/Manila",
@@ -140,7 +141,7 @@ function formatShortDate(input: string) {
 }
 
 const getMonthLabel = (offset: number) => {
-  const now = new Date();
+  const now = getAppDate();
   const date = new Date(now.getFullYear(), now.getMonth() - offset, 1);
 
   return new Intl.DateTimeFormat("en-PH", {

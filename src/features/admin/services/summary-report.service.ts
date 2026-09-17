@@ -3,6 +3,7 @@ import {
   isApprovedResidentUser,
 } from "../../auth/services/auth.service";
 import type { User } from "../../../types";
+import { getAppDate } from "../../../lib/app-date";
 
 import type {
   MonthlySummaryRow,
@@ -273,18 +274,19 @@ const getManilaDateParts = () => {
     timeZone: "Asia/Manila",
     year: "numeric",
     month: "2-digit",
-  }).formatToParts(new Date());
+  }).formatToParts(getAppDate());
 
   const year = Number(parts.find((part) => part.type === "year")?.value);
 
   const month = Number(parts.find((part) => part.type === "month")?.value);
 
   return {
-    year: Number.isInteger(year) && year > 0 ? year : new Date().getFullYear(),
+    year:
+      Number.isInteger(year) && year > 0 ? year : getAppDate().getFullYear(),
     month:
       Number.isInteger(month) && month >= 1 && month <= 12
         ? month
-        : new Date().getMonth() + 1,
+        : getAppDate().getMonth() + 1,
   };
 };
 

@@ -23,6 +23,7 @@ import {
   updateResidentPaymentForMonth,
 } from "../../features/auth/services/auth.service";
 import type { User } from "../../types";
+import { getAppDate } from "../../lib/app-date";
 
 type PaymentStatus = "Paid" | "Not Paid";
 type StatusFilter = "All" | PaymentStatus;
@@ -91,7 +92,7 @@ type PaymentHistoryLike = {
 };
 
 const getCurrentMonthKey = () => {
-  const now = new Date();
+  const now = getAppDate();
 
   const parts = new Intl.DateTimeFormat("en-PH", {
     timeZone: "Asia/Manila",
@@ -277,7 +278,7 @@ const toLotNumber = (value: unknown) => {
 };
 
 const getTodayShortDate = () => {
-  const now = new Date();
+  const now = getAppDate();
   const mm = String(now.getMonth() + 1).padStart(2, "0");
   const dd = String(now.getDate()).padStart(2, "0");
   const yy = String(now.getFullYear()).slice(-2);

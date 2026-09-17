@@ -20,6 +20,7 @@ import type {
   User,
 } from "../../../types";
 import { db } from "../../../lib/firebase/firebase";
+import { getAppDate } from "../../../lib/app-date";
 
 export const addUser = async (
   userData: UserDataSignUpOwnerType | UserDataSignUpRenterType,
@@ -342,7 +343,7 @@ type UpdateResidentPaymentParams = {
 };
 
 const getPhilippinePaymentDate = () => {
-  const now = new Date();
+  const now = getAppDate();
 
   const parts = new Intl.DateTimeFormat("en-PH", {
     timeZone: "Asia/Manila",

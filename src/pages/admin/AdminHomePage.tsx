@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useUser } from "@clerk/clerk-react";
 import { useQuery } from "@tanstack/react-query";
@@ -9,6 +9,8 @@ import {
   BadgeCheck,
   ArrowRight,
   RefreshCw,
+  CalendarClock,
+  RotateCcw,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -24,6 +26,13 @@ import {
   isApprovedResidentUser,
 } from "../../features/auth/services/auth.service";
 import type { User } from "../../types";
+import {
+  clearDemoDate,
+  getAppDate,
+  getDemoDateValue,
+  isDemoTimeEnabled,
+  setDemoDate,
+} from "../../lib/app-date";
 
 type PaymentStatus = "Paid" | "Not Paid";
 
@@ -74,13 +83,13 @@ const getManilaDate = () =>
     month: "short",
     day: "2-digit",
     year: "numeric",
-  }).format(new Date());
+  }).format(getAppDate());
 
 const getCurrentYear = () => {
   const parts = new Intl.DateTimeFormat("en-PH", {
     timeZone: "Asia/Manila",
     year: "numeric",
-  }).formatToParts(new Date());
+  }).formatToParts(getAppDate());
 
   return parts.find((part) => part.type === "year")?.value ?? "";
 };
@@ -90,7 +99,7 @@ const getCurrentMonthKey = () => {
     timeZone: "Asia/Manila",
     year: "numeric",
     month: "2-digit",
-  }).formatToParts(new Date());
+  }).formatToParts(getAppDate());
 
   const year = parts.find((part) => part.type === "year")?.value ?? "";
   const month = parts.find((part) => part.type === "month")?.value ?? "";
@@ -166,6 +175,11 @@ const toMillis = (value: unknown) => {
 
 export default function AdminHomePage() {
   const { user: clerkUser } = useUser();
+  const demoEnabled = isDemoTimeEnabled();
+  const [demoDateInput, setDemoDateInput] = useState(
+    () => getDemoDateValue() || new Date().toISOString().slice(0, 10),
+  );
+  const [demoMessage, setDemoMessage] = useState("");
 
   const userName =
     clerkUser?.fullName ||
@@ -341,6 +355,27 @@ export default function AdminHomePage() {
     },
   ];
 
+  const applyDemoDate = async () => {
+    try {
+      setDemoDate(demoDateInput);
+      setDemoMessage(
+        `Demo date changed to ${getAppDate().toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}.`,
+      );
+      await refetch();
+    } catch (demoError) {
+      setDemoMessage(
+        demoError instanceof Error ? demoError.message : "Invalid demo date.",
+      );
+    }
+  };
+
+  const resetDemoDate = async () => {
+    clearDemoDate();
+    setDemoDateInput(new Date().toISOString().slice(0, 10));
+    setDemoMessage("Demo clock reset to the real date.");
+    await refetch();
+  };
+
   return (
     <div className="space-y-6">
       {error && (
@@ -352,6 +387,54 @@ export default function AdminHomePage() {
               : "Failed to load dashboard data."}
           </p>
         </div>
+      )}
+
+      {demoEnabled && (
+        <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-amber-900">
+                <CalendarClock size={20} />
+                <h2 className="font-extrabold">Defense Demo Clock</h2>
+              </div>
+              <p className="mt-1 max-w-2xl text-sm font-medium text-amber-800">
+                Temporarily change the app date to demonstrate a new billing
+                month. This affects monthly dues, payment status, dashboard
+                totals, and new-bill notifications.
+              </p>
+              {demoMessage && (
+                <p className="mt-2 text-xs font-bold text-amber-900">
+                  {demoMessage}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                type="date"
+                value={demoDateInput}
+                onChange={(event) => setDemoDateInput(event.target.value)}
+                className="rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-800 outline-none focus:ring-2 focus:ring-amber-400"
+              />
+              <button
+                type="button"
+                onClick={applyDemoDate}
+                disabled={!demoDateInput || isRefetching}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-amber-700 disabled:opacity-60"
+              >
+                <CalendarClock size={16} /> Apply Demo Date
+              </button>
+              <button
+                type="button"
+                onClick={resetDemoDate}
+                disabled={isRefetching}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-300 bg-white px-4 py-2 text-sm font-bold text-amber-900 transition hover:bg-amber-100 disabled:opacity-60"
+              >
+                <RotateCcw size={16} /> Real Date
+              </button>
+            </div>
+          </div>
+        </section>
       )}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
