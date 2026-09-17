@@ -322,10 +322,15 @@ export type NotificationRecord = {
   userId: string;
   title: string;
   message: string;
-  type: "payment_reminder";
+  type: "payment_reminder" | "unpaid_balance";
   monthKey: string;
   monthLabel: string;
   amount: number;
+  beginningBalance?: number;
+  currentCharges?: number;
+  totalDue?: number;
+  collection?: number;
+  remainingBalance?: number;
   unread: boolean;
   createdAt?: unknown;
 };
@@ -523,25 +528,43 @@ const buildPaymentReminderNotification = ({
   monthKey,
   monthLabel,
   amount,
+  beginningBalance = 0,
+  currentCharges = amount,
+  collection = 0,
+  remainingBalance = amount,
 }: {
   residentId: string;
   userId: string;
   monthKey: string;
   monthLabel: string;
   amount: number;
+  beginningBalance?: number;
+  currentCharges?: number;
+  collection?: number;
+  remainingBalance?: number;
 }): NotificationRecord => {
   const id = getPaymentReminderNotificationId(residentId, monthKey);
+  const hasUnpaidBalance = beginningBalance > 0;
 
   return {
     id,
     residentId,
     userId,
-    title: "Upcoming Payment Reminder",
-    message: `Your payment for ${monthLabel} is now available. Please settle your dues on time.`,
-    type: "payment_reminder",
+    title: hasUnpaidBalance
+      ? "Unpaid Balance Added to New Bill"
+      : "New Monthly Payment Available",
+    message: hasUnpaidBalance
+      ? `Your ${monthLabel} bill includes an unpaid balance from the previous month. Open this notification to see why your total due is higher.`
+      : `Your new payment for ${monthLabel} is now available. Open this notification to view the complete billing details.`,
+    type: hasUnpaidBalance ? "unpaid_balance" : "payment_reminder",
     monthKey,
     monthLabel,
     amount,
+    beginningBalance,
+    currentCharges,
+    totalDue: amount,
+    collection,
+    remainingBalance,
     unread: true,
     createdAt: Timestamp.now(),
   };
@@ -553,12 +576,20 @@ const createPaymentReminderNotificationIfMissing = async ({
   monthKey,
   monthLabel,
   amount,
+  beginningBalance = 0,
+  currentCharges = amount,
+  collection = 0,
+  remainingBalance = amount,
 }: {
   residentId: string;
   userId: string;
   monthKey: string;
   monthLabel: string;
   amount: number;
+  beginningBalance?: number;
+  currentCharges?: number;
+  collection?: number;
+  remainingBalance?: number;
 }) => {
   const notificationId = getPaymentReminderNotificationId(residentId, monthKey);
   const notificationRef = doc(db, "notifications", notificationId);
@@ -574,6 +605,10 @@ const createPaymentReminderNotificationIfMissing = async ({
       monthKey,
       monthLabel,
       amount,
+      beginningBalance,
+      currentCharges,
+      collection,
+      remainingBalance,
     }),
   );
 };
@@ -616,6 +651,15 @@ export const getNotificationsByResidentId = async (residentId?: string) => {
 
       return getMillis(b.createdAt) - getMillis(a.createdAt);
     });
+};
+
+export const markNotificationAsRead = async (notificationId: string) => {
+  if (!notificationId) return;
+
+  await updateDoc(doc(db, "notifications", notificationId), {
+    unread: false,
+    readAt: serverTimestamp(),
+  });
 };
 
 export const ensureCurrentMonthPaymentRecord = async (resident: User) => {
@@ -714,6 +758,10 @@ export const ensureCurrentMonthPaymentRecord = async (resident: User) => {
           monthKey: currentMonthRecord.monthKey,
           monthLabel: currentMonthRecord.monthLabel,
           amount: currentMonthRecord.totalDue,
+          beginningBalance: currentMonthRecord.beginningBalance,
+          currentCharges: currentMonthRecord.currentCharges,
+          collection: currentMonthRecord.collection,
+          remainingBalance: currentMonthRecord.remainingBalance,
         }),
       );
     }
@@ -864,6 +912,10 @@ export const updateResidentPaymentForMonth = async ({
       monthKey,
       monthLabel,
       amount: totalDue,
+      beginningBalance: previousBalance,
+      currentCharges: monthlyCharge,
+      collection,
+      remainingBalance,
     });
   }
 
