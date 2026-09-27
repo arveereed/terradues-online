@@ -418,11 +418,10 @@ export default function PaymentHistory({}: Props) {
     [history],
   );
 
+  // Each newer monthly record already includes the previous unpaid balance.
+  // Never sum carried-forward balances across historical records.
   const unpaidBalance = useMemo(
-    () =>
-      history
-        .filter((item) => item.status === "Unpaid")
-        .reduce((sum, item) => sum + item.amount, 0),
+    () => Math.max(0, history[0]?.remainingBalance ?? 0),
     [history],
   );
 
