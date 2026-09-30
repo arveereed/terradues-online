@@ -2,10 +2,12 @@ import { useUser } from "@clerk/clerk-react";
 import { useEffect, useMemo, useState } from "react";
 import { useFirestoreUser } from "../../features/auth/hooks/useFirestoreUser";
 import { RefreshCw } from "lucide-react";
+import { getAppDate } from "../../lib/app-date";
 
 type PaymentStatus = "Paid" | "Unpaid";
 
 type PaymentItem = {
+  monthKey: string;
   dateLabel: string;
   status: PaymentStatus;
   amount: number;
@@ -241,6 +243,7 @@ const getPaymentHistoryFromUser = (user: unknown): PaymentItem[] => {
         toMillis(item.createdAt);
 
       return {
+        monthKey: clean(item.monthKey),
         dateLabel,
         status,
         amount,
@@ -425,9 +428,31 @@ export default function PaymentHistory({}: Props) {
     [history],
   );
 
-  const upcomingPaymentDate =
-    history.find((item) => item.status === "Unpaid")?.dateLabel ||
-    "No upcoming payment";
+  const upcomingPaymentDate = useMemo(() => {
+    // Upcoming payment must follow the billing timeline, not an old unpaid row.
+    // Older unpaid balances are already carried into newer monthly records.
+    const appDate = getAppDate();
+    const currentMonthKey = `${appDate.getFullYear()}-${String(
+      appDate.getMonth() + 1,
+    ).padStart(2, "0")}`;
+
+    const currentMonthRecord = history.find(
+      (item) => item.monthKey === currentMonthKey,
+    );
+
+    // If this month's bill is already paid, the next payment is next month.
+    // Otherwise the current month is still the payment that is due/upcoming.
+    const targetDate = new Date(
+      appDate.getFullYear(),
+      appDate.getMonth() + (currentMonthRecord?.status === "Paid" ? 1 : 0),
+      1,
+    );
+
+    return new Intl.DateTimeFormat("en-PH", {
+      month: "long",
+      year: "numeric",
+    }).format(targetDate);
+  }, [history]);
 
   const lastPaymentDate =
     history.find((item) => item.status === "Paid")?.dateLabel ||
