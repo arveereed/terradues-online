@@ -457,6 +457,139 @@ const getPreviousRemainingBalance = (
   return previousRows[previousRows.length - 1].remainingBalance;
 };
 
+const isMonthKey = (value: string) => /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+
+const getMonthLabelFromKey = (monthKey: string) => {
+  const [year, month] = monthKey.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-PH", {
+    timeZone: "Asia/Manila",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(Date.UTC(year, month - 1, 15, 12)));
+};
+
+const getNextMonthKey = (monthKey: string) => {
+  const [year, month] = monthKey.split("-").map(Number);
+  const next = new Date(Date.UTC(year, month, 1, 12));
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}`;
+};
+
+/**
+ * Rebuild the running balance once, in chronological order.
+ *
+ * IMPORTANT: totalDue is already cumulative for that billing month. We must
+ * never add historical totalDue values together. Only the immediately previous
+ * month's remainingBalance is carried into the next month.
+ */
+const reconcilePaymentHistory = (
+  history: PaymentHistoryRecord[],
+  monthlyCharge: number,
+) => {
+  let previousRemaining = 0;
+
+  return [...history]
+    .sort((a, b) => compareMonthKey(a.monthKey, b.monthKey))
+    .map((row) => {
+      if (!isMonthKey(row.monthKey)) return row;
+
+      const currentCharges = toNumber(row.currentCharges, monthlyCharge);
+      const totalDue = currentCharges + previousRemaining;
+      const collection = row.status === "Paid" ? totalDue : 0;
+      const remainingBalance = Math.max(totalDue - collection, 0);
+
+      const reconciled: PaymentHistoryRecord = {
+        ...row,
+        beginningBalance: previousRemaining,
+        additionalCharges: previousRemaining,
+        currentCharges,
+        totalDue,
+        collection,
+        remainingBalance,
+      };
+
+      previousRemaining = remainingBalance;
+      return reconciled;
+    });
+};
+
+const buildMonthRecord = ({
+  residentId,
+  monthKey,
+  beginningBalance,
+  monthlyCharge,
+}: {
+  residentId: string;
+  monthKey: string;
+  beginningBalance: number;
+  monthlyCharge: number;
+}) => {
+  const totalDue = monthlyCharge + beginningBalance;
+  const timestamp = Timestamp.now();
+
+  return {
+    id: `${residentId}-${monthKey}`,
+    monthKey,
+    monthLabel: getMonthLabelFromKey(monthKey),
+    beginningBalance,
+    currentCharges: monthlyCharge,
+    additionalCharges: beginningBalance,
+    totalDue,
+    collection: 0,
+    remainingBalance: totalDue,
+    status: "Not Paid" as PaymentStatus,
+    datePaid: "-",
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  } satisfies PaymentHistoryRecord;
+};
+
+/** Create every missing month up to targetMonthKey (used by the demo clock). */
+const fillMissingPaymentMonths = ({
+  residentId,
+  history,
+  monthlyCharge,
+  targetMonthKey,
+}: {
+  residentId: string;
+  history: PaymentHistoryRecord[];
+  monthlyCharge: number;
+  targetMonthKey: string;
+}) => {
+  const reconciled = reconcilePaymentHistory(history, monthlyCharge);
+  const realRows = reconciled
+    .filter((row) => isMonthKey(row.monthKey) && row.monthKey <= targetMonthKey)
+    .sort((a, b) => compareMonthKey(a.monthKey, b.monthKey));
+
+  if (realRows.some((row) => row.monthKey === targetMonthKey)) {
+    return reconciled;
+  }
+
+  // With no prior monthly record, initialize only the selected/current month.
+  let nextMonthKey =
+    realRows.length > 0
+      ? getNextMonthKey(realRows[realRows.length - 1].monthKey)
+      : targetMonthKey;
+  let previousRemaining =
+    realRows.length > 0 ? realRows[realRows.length - 1].remainingBalance : 0;
+
+  const additions: PaymentHistoryRecord[] = [];
+  while (nextMonthKey <= targetMonthKey) {
+    const record = buildMonthRecord({
+      residentId,
+      monthKey: nextMonthKey,
+      beginningBalance: previousRemaining,
+      monthlyCharge,
+    });
+    additions.push(record);
+    previousRemaining = record.remainingBalance;
+    nextMonthKey = getNextMonthKey(nextMonthKey);
+  }
+
+  return [...reconciled, ...additions].sort((a, b) =>
+    compareMonthKey(a.monthKey, b.monthKey),
+  );
+};
+
 /**
  * Returns true for Firestore users whose account represents a resident.
  *
@@ -485,37 +618,6 @@ const getResidentMonthlyCharge = (user: User) => {
   const amount = Number(rawAmount);
 
   return Number.isFinite(amount) && amount > 0 ? amount : 300;
-};
-
-const buildCurrentMonthRecord = ({
-  residentId,
-  history,
-  monthlyCharge,
-}: {
-  residentId: string;
-  history: PaymentHistoryRecord[];
-  monthlyCharge: number;
-}) => {
-  const { monthKey, monthLabel } = getPhilippinePaymentDate();
-  const beginningBalance = getPreviousRemainingBalance(history, monthKey);
-  const totalDue = monthlyCharge + beginningBalance;
-  const timestamp = Timestamp.now();
-
-  return {
-    id: `${residentId}-${monthKey}`,
-    monthKey,
-    monthLabel,
-    beginningBalance,
-    currentCharges: monthlyCharge,
-    additionalCharges: beginningBalance,
-    totalDue,
-    collection: 0,
-    remainingBalance: totalDue,
-    status: "Not Paid" as PaymentStatus,
-    datePaid: "-",
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  } satisfies PaymentHistoryRecord;
 };
 
 const getPaymentReminderNotificationId = (
@@ -571,87 +673,145 @@ const buildPaymentReminderNotification = ({
   };
 };
 
-const createPaymentReminderNotificationIfMissing = async ({
-  residentId,
-  userId,
-  monthKey,
-  monthLabel,
-  amount,
-  beginningBalance = 0,
-  currentCharges = amount,
-  collection = 0,
-  remainingBalance = amount,
-}: {
-  residentId: string;
-  userId: string;
-  monthKey: string;
-  monthLabel: string;
-  amount: number;
-  beginningBalance?: number;
-  currentCharges?: number;
-  collection?: number;
-  remainingBalance?: number;
-}) => {
-  const notificationId = getPaymentReminderNotificationId(residentId, monthKey);
-  const notificationRef = doc(db, "notifications", notificationId);
-  const notificationSnap = await getDoc(notificationRef);
-
-  if (notificationSnap.exists()) return;
-
-  await setDoc(
-    notificationRef,
-    buildPaymentReminderNotification({
-      residentId,
-      userId,
-      monthKey,
-      monthLabel,
-      amount,
-      beginningBalance,
-      currentCharges,
-      collection,
-      remainingBalance,
-    }),
-  );
-};
-
 export const getNotificationsByResidentId = async (residentId?: string) => {
   if (!residentId) return [];
 
-  const notificationsCollection = collection(db, "notifications");
-  const q = query(
-    notificationsCollection,
-    where("residentId", "==", residentId),
-  );
-  const querySnapshot = await getDocs(q);
+  /*
+   * IMPORTANT:
+   *
+   * Before loading notifications, make sure the resident's monthly
+   * payment history is initialized.
+   *
+   * ensureCurrentMonthPaymentRecord() is the single source of truth
+   * responsible for:
+   *
+   * 1. Creating missing paymentHistory months
+   * 2. Carrying forward unpaid balances
+   * 3. Creating missing monthly notifications
+   * 4. Repairing incorrect notification amounts
+   * 5. Preventing duplicate monthly notifications
+   *
+   * This means:
+   *
+   * Delete paymentHistory + notification from Firestore
+   *        ↓
+   * Resident opens Notifications
+   *        ↓
+   * Missing paymentHistory is recreated
+   *        ↓
+   * Missing notification is recreated
+   *        ↓
+   * Notifications are fetched and displayed
+   */
 
-  return querySnapshot.docs
-    .map((docSnap) => ({
-      ...(docSnap.data() as NotificationRecord),
-      id: docSnap.id,
-    }))
-    .sort((a, b) => {
-      const getMillis = (value: unknown) => {
-        if (!value || typeof value !== "object") return 0;
+  try {
+    const residentRef = doc(db, "users", residentId);
+    const residentSnap = await getDoc(residentRef);
 
-        if (
-          "toMillis" in value &&
-          typeof (value as { toMillis?: unknown }).toMillis === "function"
-        ) {
-          return (value as { toMillis: () => number }).toMillis();
-        }
-
-        if (
-          "seconds" in value &&
-          typeof (value as { seconds?: unknown }).seconds === "number"
-        ) {
-          return (value as { seconds: number }).seconds * 1000;
-        }
-
-        return 0;
+    if (residentSnap.exists()) {
+      const resident: User = {
+        ...(residentSnap.data() as User),
+        id: residentSnap.id,
       };
 
-      return getMillis(b.createdAt) - getMillis(a.createdAt);
-    });
+      const approvalStatus = resident.approvalStatus ?? "approved";
+
+      if (
+        isResidentPaymentUser(resident) &&
+        approvalStatus === "approved" &&
+        resident.accountStatus !== "archived"
+      ) {
+        await ensureCurrentMonthPaymentRecord(resident);
+      }
+    }
+
+    /*
+     * Fetch notifications AFTER billing initialization.
+     *
+     * This order is important because
+     * ensureCurrentMonthPaymentRecord() may have just created
+     * one or more missing notification documents.
+     */
+    const notificationsCollection = collection(db, "notifications");
+
+    const q = query(
+      notificationsCollection,
+      where("residentId", "==", residentId),
+    );
+
+    const querySnapshot = await getDocs(q);
+
+    return querySnapshot.docs
+      .map((docSnap) => ({
+        ...(docSnap.data() as NotificationRecord),
+        id: docSnap.id,
+      }))
+      .sort((a, b) => {
+        /*
+         * Monthly billing notifications must be ordered
+         * by BILLING MONTH, newest first.
+         *
+         * Example:
+         * 2027-01
+         * 2026-12
+         * 2026-11
+         * 2026-10
+         */
+
+        const aMonthKey =
+          typeof a.monthKey === "string" ? a.monthKey.trim() : "";
+
+        const bMonthKey =
+          typeof b.monthKey === "string" ? b.monthKey.trim() : "";
+
+        // Both notifications have billing months.
+        if (aMonthKey && bMonthKey) {
+          return bMonthKey.localeCompare(aMonthKey);
+        }
+
+        // A monthly billing notification goes before
+        // a notification without a monthKey.
+        if (aMonthKey && !bMonthKey) {
+          return -1;
+        }
+
+        if (!aMonthKey && bMonthKey) {
+          return 1;
+        }
+
+        /*
+         * Non-monthly notifications fall back to createdAt.
+         */
+        const getMillis = (value: unknown) => {
+          if (!value || typeof value !== "object") return 0;
+
+          if (
+            "toMillis" in value &&
+            typeof (value as { toMillis?: unknown }).toMillis === "function"
+          ) {
+            return (value as { toMillis: () => number }).toMillis();
+          }
+
+          if (
+            "seconds" in value &&
+            typeof (value as { seconds?: unknown }).seconds === "number"
+          ) {
+            return (value as { seconds: number }).seconds * 1000;
+          }
+
+          return 0;
+        };
+
+        return getMillis(b.createdAt) - getMillis(a.createdAt);
+      });
+  } catch (error) {
+    console.error(
+      "Failed to initialize resident billing before loading notifications:",
+      error,
+    );
+
+    throw error;
+  }
 };
 
 export const markNotificationAsRead = async (notificationId: string) => {
@@ -664,40 +824,23 @@ export const markNotificationAsRead = async (notificationId: string) => {
 };
 
 export const ensureCurrentMonthPaymentRecord = async (resident: User) => {
-  /**
-   * Pending and denied registrations must never enter the payment system.
-   */
-  if (!isApprovedResidentUser(resident)) {
-    return resident;
-  }
+  if (!isApprovedResidentUser(resident)) return resident;
 
   const residentRef = doc(db, "users", resident.id);
-  const { monthKey, monthLabel } = getPhilippinePaymentDate();
+  const { monthKey } = getPhilippinePaymentDate();
 
   return runTransaction(db, async (transaction) => {
     const residentSnap = await transaction.get(residentRef);
-
-    if (!residentSnap.exists()) {
+    if (!residentSnap.exists())
       throw new Error("Resident record was not found.");
-    }
 
     const residentData: User = {
       ...(residentSnap.data() as User),
       id: resident.id,
     };
-
-    /**
-     * Check again inside the transaction.
-     *
-     * The resident may have been denied or returned to pending after the function
-     * was called but before the transaction read the current Firestore document.
-     */
-    if (!isApprovedResidentUser(residentData)) {
-      return residentData;
-    }
+    if (!isApprovedResidentUser(residentData)) return residentData;
 
     const monthlyCharge = getResidentMonthlyCharge(residentData);
-
     const rawHistory = Array.isArray(
       (residentData as { paymentHistory?: unknown }).paymentHistory,
     )
@@ -710,61 +853,72 @@ export const ensureCurrentMonthPaymentRecord = async (resident: User) => {
       rawHistory,
       monthlyCharge,
     );
+    const completeHistory = fillMissingPaymentMonths({
+      residentId: resident.id,
+      history: normalizedHistory,
+      monthlyCharge,
+      targetMonthKey: monthKey,
+    });
 
-    const existingCurrentMonthRecord = normalizedHistory.find(
-      (row) => row.monthKey === monthKey || row.monthLabel === monthLabel,
+    const currentMonthRecord = completeHistory.find(
+      (row) => row.monthKey === monthKey,
     );
+    if (!currentMonthRecord)
+      throw new Error("Current payment month could not be created.");
 
-    const currentMonthRecord =
-      existingCurrentMonthRecord ??
-      buildCurrentMonthRecord({
-        residentId: resident.id,
-        history: normalizedHistory,
-        monthlyCharge,
-      });
-
-    const notificationId = getPaymentReminderNotificationId(
-      resident.id,
-      currentMonthRecord.monthKey,
+    // Read all notification docs before any transaction writes.
+    const billRows = completeHistory.filter(
+      (row) => isMonthKey(row.monthKey) && row.monthKey <= monthKey,
     );
-
-    const notificationRef = doc(db, "notifications", notificationId);
-    const notificationSnap = await transaction.get(notificationRef);
-
-    const paymentHistory = existingCurrentMonthRecord
-      ? normalizedHistory.sort((a, b) =>
-          compareMonthKey(b.monthKey, a.monthKey),
-        )
-      : [currentMonthRecord, ...normalizedHistory].sort((a, b) =>
-          compareMonthKey(b.monthKey, a.monthKey),
+    const notificationEntries = await Promise.all(
+      billRows.map(async (row) => {
+        const ref = doc(
+          db,
+          "notifications",
+          getPaymentReminderNotificationId(resident.id, row.monthKey),
         );
+        const snap = await transaction.get(ref);
+        return { row, ref, snap };
+      }),
+    );
 
-    if (!existingCurrentMonthRecord) {
-      transaction.update(residentRef, {
-        paymentHistory,
-        currentMonthDue: currentMonthRecord.totalDue,
-        remainingBalance: currentMonthRecord.remainingBalance,
-        paymentStatus: currentMonthRecord.status,
-        paymentDate: "",
-        updatedAt: serverTimestamp(),
+    const paymentHistory = [...completeHistory].sort((a, b) =>
+      compareMonthKey(b.monthKey, a.monthKey),
+    );
+
+    transaction.update(residentRef, {
+      paymentHistory,
+      currentMonthDue: currentMonthRecord.totalDue,
+      remainingBalance: currentMonthRecord.remainingBalance,
+      paymentStatus: currentMonthRecord.status,
+      paymentDate:
+        currentMonthRecord.status === "Paid" ? currentMonthRecord.datePaid : "",
+      updatedAt: serverTimestamp(),
+    });
+
+    for (const { row, ref, snap } of notificationEntries) {
+      const fresh = buildPaymentReminderNotification({
+        residentId: resident.id,
+        userId: cleanString(residentData.user_id),
+        monthKey: row.monthKey,
+        monthLabel: row.monthLabel,
+        amount: row.totalDue,
+        beginningBalance: row.beginningBalance,
+        currentCharges: row.currentCharges,
+        collection: row.collection,
+        remainingBalance: row.remainingBalance,
       });
-    }
 
-    if (!notificationSnap.exists()) {
-      transaction.set(
-        notificationRef,
-        buildPaymentReminderNotification({
-          residentId: resident.id,
-          userId: cleanString(residentData.user_id),
-          monthKey: currentMonthRecord.monthKey,
-          monthLabel: currentMonthRecord.monthLabel,
-          amount: currentMonthRecord.totalDue,
-          beginningBalance: currentMonthRecord.beginningBalance,
-          currentCharges: currentMonthRecord.currentCharges,
-          collection: currentMonthRecord.collection,
-          remainingBalance: currentMonthRecord.remainingBalance,
-        }),
-      );
+      // Repair old/wrong billing figures but preserve read state and original time.
+      transaction.set(ref, {
+        ...fresh,
+        unread: snap.exists()
+          ? ((snap.data() as NotificationRecord).unread ?? false)
+          : true,
+        createdAt: snap.exists()
+          ? ((snap.data() as NotificationRecord).createdAt ?? fresh.createdAt)
+          : fresh.createdAt,
+      });
     }
 
     return {
@@ -851,7 +1005,10 @@ export const updateResidentPaymentForMonth = async ({
       ? residentPaymentData.payments
       : [];
 
-  const normalizedHistory = normalizePaymentHistory(rawHistory, monthlyCharge);
+  const normalizedHistory = reconcilePaymentHistory(
+    normalizePaymentHistory(rawHistory, monthlyCharge),
+    monthlyCharge,
+  );
 
   const previousBalance = getPreviousRemainingBalance(
     normalizedHistory,
@@ -906,19 +1063,31 @@ export const updateResidentPaymentForMonth = async ({
     updatedAt: serverTimestamp(),
   });
 
-  if (existingIndex < 0) {
-    await createPaymentReminderNotificationIfMissing({
-      residentId,
-      userId: cleanString(residentData.user_id),
-      monthKey,
-      monthLabel,
-      amount: totalDue,
-      beginningBalance: previousBalance,
-      currentCharges: monthlyCharge,
-      collection,
-      remainingBalance,
-    });
-  }
+  const notificationId = getPaymentReminderNotificationId(residentId, monthKey);
+  const notificationRef = doc(db, "notifications", notificationId);
+  const existingNotification = await getDoc(notificationRef);
+  const freshNotification = buildPaymentReminderNotification({
+    residentId,
+    userId: cleanString(residentData.user_id),
+    monthKey,
+    monthLabel,
+    amount: totalDue,
+    beginningBalance: previousBalance,
+    currentCharges: monthlyCharge,
+    collection,
+    remainingBalance,
+  });
+
+  await setDoc(notificationRef, {
+    ...freshNotification,
+    unread: existingNotification.exists()
+      ? ((existingNotification.data() as NotificationRecord).unread ?? false)
+      : true,
+    createdAt: existingNotification.exists()
+      ? ((existingNotification.data() as NotificationRecord).createdAt ??
+        freshNotification.createdAt)
+      : freshNotification.createdAt,
+  });
 
   return {
     paymentStatus: status,
