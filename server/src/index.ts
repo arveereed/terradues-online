@@ -12,6 +12,10 @@ import {
   type ServiceAccount,
 } from "firebase-admin/app";
 import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import {
+  createPaymongoCheckoutHandler,
+  paymongoWebhookHandler,
+} from "./paymongo-payments";
 
 dotenv.config();
 
@@ -120,7 +124,15 @@ app.use(
   }),
 );
 
+app.post(
+  "/api/payments/paymongo/webhook",
+  express.raw({ type: "application/json", limit: "1mb" }),
+  paymongoWebhookHandler,
+);
+
 app.use(express.json({ limit: "1mb" }));
+
+app.post("/api/payments/paymongo/checkout", createPaymongoCheckoutHandler);
 
 app.get("/health", (_req, res) => {
   res

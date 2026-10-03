@@ -20,7 +20,7 @@ import type {
   User,
 } from "../../../types";
 import { db } from "../../../lib/firebase/firebase";
-import { getAppDate } from "../../../lib/app-date";
+import { getAppDate, getDemoDateValue } from "../../../lib/app-date";
 
 export const addUser = async (
   userData: UserDataSignUpOwnerType | UserDataSignUpRenterType,
@@ -823,11 +823,34 @@ export const markNotificationAsRead = async (notificationId: string) => {
   });
 };
 
-export const ensureCurrentMonthPaymentRecord = async (resident: User) => {
+export const ensureCurrentMonthPaymentRecord = async (
+  resident: User,
+  options?: { monthKey?: string; demoMode?: boolean },
+) => {
   if (!isApprovedResidentUser(resident)) return resident;
 
   const residentRef = doc(db, "users", resident.id);
-  const { monthKey } = getPhilippinePaymentDate();
+
+  // Admin billing pages pass the effective Demo Clock month explicitly.
+  // Resident pages do not own the Demo Clock, so when the admin has persisted
+  // demo mode we preserve that exact month instead of replacing it with the
+  // resident browser's real/local date.
+  const persistedMonthKey = cleanString(
+    (resident as User & { currentBillingMonthKey?: unknown })
+      .currentBillingMonthKey,
+  );
+  const persistedDemoMode =
+    (resident as User & { currentBillingDemoMode?: unknown })
+      .currentBillingDemoMode === true;
+
+  const realOrLocalMonthKey = getPhilippinePaymentDate().monthKey;
+  const requestedMonthKey = cleanString(options?.monthKey);
+  const monthKey =
+    (isMonthKey(requestedMonthKey) && requestedMonthKey) ||
+    (persistedDemoMode && isMonthKey(persistedMonthKey)
+      ? persistedMonthKey
+      : realOrLocalMonthKey);
+  const demoMode = options?.demoMode ?? persistedDemoMode;
 
   return runTransaction(db, async (transaction) => {
     const residentSnap = await transaction.get(residentRef);
@@ -888,6 +911,11 @@ export const ensureCurrentMonthPaymentRecord = async (resident: User) => {
 
     transaction.update(residentRef, {
       paymentHistory,
+      // Persist the billing month selected by the central TerraDues clock.
+      // Resident pages may run in another login/session, so they must not try
+      // to reconstruct the admin Demo Clock from their own localStorage.
+      currentBillingMonthKey: monthKey,
+      currentBillingDemoMode: demoMode,
       currentMonthDue: currentMonthRecord.totalDue,
       remainingBalance: currentMonthRecord.remainingBalance,
       paymentStatus: currentMonthRecord.status,
@@ -946,9 +974,12 @@ export const getApprovedResidentsWithCurrentMonthPayments = async () => {
 
   const approvedResidents = users.filter(isApprovedResidentUser);
 
+  const { monthKey } = getPhilippinePaymentDate();
+  const demoMode = Boolean(getDemoDateValue());
+
   return Promise.all(
     approvedResidents.map((resident) =>
-      ensureCurrentMonthPaymentRecord(resident),
+      ensureCurrentMonthPaymentRecord(resident, { monthKey, demoMode }),
     ),
   );
 };

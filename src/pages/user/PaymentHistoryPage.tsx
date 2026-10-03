@@ -2,7 +2,7 @@ import { useUser } from "@clerk/clerk-react";
 import { useEffect, useMemo, useState } from "react";
 import { useFirestoreUser } from "../../features/auth/hooks/useFirestoreUser";
 import { RefreshCw } from "lucide-react";
-import { getAppDate } from "../../lib/app-date";
+import PayNowButton from "../../components/PayNowButton";
 
 type PaymentStatus = "Paid" | "Unpaid";
 
@@ -421,38 +421,49 @@ export default function PaymentHistory({}: Props) {
     [history],
   );
 
-  // Each newer monthly record already includes the previous unpaid balance.
-  // Never sum carried-forward balances across historical records.
-  const unpaidBalance = useMemo(
-    () => Math.max(0, history[0]?.remainingBalance ?? 0),
-    [history],
+  // The billing service persists the effective billing month on the resident
+  // document. This is intentionally NOT derived from this browser's getAppDate()
+  // because the Demo Clock is controlled from the admin session and localStorage
+  // is browser/session-local.
+  const persistedBillingMonthKey = clean(
+    (user as { currentBillingMonthKey?: unknown } | null | undefined)
+      ?.currentBillingMonthKey,
   );
 
+  // Backward-compatible fallback for residents that have not yet been touched by
+  // the updated billing initializer. paymentHistory is already sorted newest-first.
+  const activeMonthKey = persistedBillingMonthKey || history[0]?.monthKey || "";
+
+  const activeMonthRecord = useMemo(
+    () => history.find((item) => item.monthKey === activeMonthKey),
+    [history, activeMonthKey],
+  );
+
+  // A monthly row already contains its carried-forward balance. Never add the
+  // balances from older cumulative rows together.
+  const unpaidBalance = Math.max(0, activeMonthRecord?.remainingBalance ?? 0);
+
   const upcomingPaymentDate = useMemo(() => {
-    // Upcoming payment must follow the billing timeline, not an old unpaid row.
-    // Older unpaid balances are already carried into newer monthly records.
-    const appDate = getAppDate();
-    const currentMonthKey = `${appDate.getFullYear()}-${String(
-      appDate.getMonth() + 1,
-    ).padStart(2, "0")}`;
+    // "Upcoming payment" means the NEXT monthly bill after the active billing
+    // month, whether the active bill is Paid or Not Paid. Any unpaid amount will
+    // be carried into that next record by the existing billing service.
+    if (!activeMonthKey) return "No upcoming payment";
 
-    const currentMonthRecord = history.find(
-      (item) => item.monthKey === currentMonthKey,
-    );
+    const [yearText, monthText] = activeMonthKey.split("-");
+    const year = Number(yearText);
+    const month = Number(monthText);
 
-    // If this month's bill is already paid, the next payment is next month.
-    // Otherwise the current month is still the payment that is due/upcoming.
-    const targetDate = new Date(
-      appDate.getFullYear(),
-      appDate.getMonth() + (currentMonthRecord?.status === "Paid" ? 1 : 0),
-      1,
-    );
+    if (!Number.isInteger(year) || month < 1 || month > 12) {
+      return "No upcoming payment";
+    }
+
+    const nextMonth = new Date(year, month, 1);
 
     return new Intl.DateTimeFormat("en-PH", {
       month: "long",
       year: "numeric",
-    }).format(targetDate);
-  }, [history]);
+    }).format(nextMonth);
+  }, [activeMonthKey]);
 
   const lastPaymentDate =
     history.find((item) => item.status === "Paid")?.dateLabel ||
@@ -474,6 +485,33 @@ export default function PaymentHistory({}: Props) {
   }, [page, totalPages]);
 
   const loading = !isLoaded || isLoading;
+
+  // PayMongo redirects the browser as soon as checkout succeeds. The webhook
+  // can reach our backend a moment later, so briefly refetch until Firestore
+  // reflects the verified payment instead of leaving the page stale.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("payment") !== "success") return;
+
+    let attempts = 0;
+    let intervalId = 0;
+    const maxAttempts = 8;
+
+    const refreshPayment = async () => {
+      attempts += 1;
+      await refetch();
+      if (attempts >= maxAttempts) {
+        window.clearInterval(intervalId);
+      }
+    };
+
+    void refreshPayment();
+    intervalId = window.setInterval(() => {
+      void refreshPayment();
+    }, 1500);
+
+    return () => window.clearInterval(intervalId);
+  }, [refetch]);
 
   return (
     <div>
@@ -518,15 +556,34 @@ export default function PaymentHistory({}: Props) {
         </div>
 
         <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200 sm:p-6">
-          <p className="text-xs font-semibold text-zinc-500">Unpaid Balance:</p>
-          <p className="mt-2 text-2xl font-extrabold text-zinc-900">
-            {loading ? "..." : peso(unpaidBalance)}
-          </p>
+          {/* Unpaid Balance + Pay Now */}
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-zinc-500">
+                Unpaid Balance:
+              </p>
 
+              <p className="mt-2 text-2xl font-extrabold text-zinc-900">
+                {loading ? "..." : peso(unpaidBalance)}
+              </p>
+            </div>
+
+            {!loading && unpaidBalance > 0 && activeMonthRecord?.monthKey ? (
+              <div className="shrink-0">
+                <PayNowButton
+                  monthKey={activeMonthRecord.monthKey}
+                  amount={unpaidBalance}
+                />
+              </div>
+            ) : null}
+          </div>
+
+          {/* Last Payment */}
           <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
             <p className="text-xs font-semibold text-emerald-900">
               Last Payment
             </p>
+
             <p className="mt-1 text-sm text-emerald-900/80">
               {loading ? "Loading..." : lastPaymentDate}
             </p>
