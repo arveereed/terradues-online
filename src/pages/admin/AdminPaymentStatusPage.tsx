@@ -1,4 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "../../lib/firebase/firebase";
 import {
   Listbox,
   ListboxButton,
@@ -442,17 +444,53 @@ export default function AdminPaymentStatusPage() {
     void loadResidents();
   }, []);
 
+  // Realtime Firestore listener: this does NOT reload or poll the page.
+  // It only replaces the displayed rows when the users collection actually
+  // changes (for example, after a successful PayMongo webhook marks a bill Paid).
   useEffect(() => {
-    setStatusById((prev) => {
-      const next: Record<string, PaymentStatus> = { ...prev };
+    const unsubscribe = onSnapshot(
+      collection(db, "users"),
+      (snapshot) => {
+        const residentRows = snapshot.docs
+          .map(
+            (doc) => ({ id: doc.id, ...doc.data() }) as unknown as ResidentUser,
+          )
+          .filter(isResidentUser)
+          .filter(isApprovedResidentUser)
+          .map(toPaymentRow)
+          .sort((a, b) => {
+            const phaseCompare = compareNatural(a.phase, b.phase);
+            if (phaseCompare !== 0) return phaseCompare;
+
+            const blockCompare = compareNatural(a.block, b.block);
+            if (blockCompare !== 0) return blockCompare;
+
+            return a.lotNo - b.lotNo;
+          });
+
+        setRows(residentRows);
+      },
+      (error) => {
+        console.error("Payment status realtime listener failed:", error);
+      },
+    );
+
+    return unsubscribe;
+  }, []);
+
+  // Keep the toggle state equal to the status of the displayed monthly row.
+  // If nothing changed, return the SAME state object to avoid a render loop.
+  useEffect(() => {
+    setStatusById((previous) => {
+      const next: Record<string, PaymentStatus> = {};
+      let changed = Object.keys(previous).length !== rows.length;
 
       for (const row of rows) {
-        if (!next[row.id]) {
-          next[row.id] = row.status;
-        }
+        next[row.id] = row.status;
+        if (previous[row.id] !== row.status) changed = true;
       }
 
-      return next;
+      return changed ? next : previous;
     });
   }, [rows]);
 

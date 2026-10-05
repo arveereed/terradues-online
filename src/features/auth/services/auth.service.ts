@@ -313,6 +313,7 @@ type PaymentHistoryRecord = {
   remainingBalance: number;
   status: PaymentStatus;
   datePaid: string;
+  paymentMethod: string;
   createdAt?: unknown;
   updatedAt?: unknown;
 };
@@ -359,6 +360,7 @@ const getPhilippinePaymentDate = () => {
 
   return {
     shortDate: `${month}-${day}-${yy}`,
+    isoDate: `${year}-${month}-${day}`,
     monthKey: `${year}-${month}`,
     monthLabel: new Intl.DateTimeFormat("en-PH", {
       timeZone: "Asia/Manila",
@@ -438,6 +440,8 @@ const normalizePaymentHistory = (
         cleanString(row.datePaid) ||
         cleanString(row.paymentDate) ||
         (status === "Paid" ? "Paid" : "-"),
+      paymentMethod:
+        status === "Paid" ? cleanString(row.paymentMethod) || "Cash" : "-",
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -538,6 +542,7 @@ const buildMonthRecord = ({
     remainingBalance: totalDue,
     status: "Not Paid" as PaymentStatus,
     datePaid: "-",
+    paymentMethod: "-",
     createdAt: timestamp,
     updatedAt: timestamp,
   } satisfies PaymentHistoryRecord;
@@ -842,8 +847,12 @@ export const ensureCurrentMonthPaymentRecord = async (
   const persistedDemoMode =
     (resident as User & { currentBillingDemoMode?: unknown })
       .currentBillingDemoMode === true;
+  const persistedBillingDate = cleanString(
+    (resident as User & { currentBillingDate?: unknown }).currentBillingDate,
+  );
 
-  const realOrLocalMonthKey = getPhilippinePaymentDate().monthKey;
+  const billingDate = getPhilippinePaymentDate();
+  const realOrLocalMonthKey = billingDate.monthKey;
   const requestedMonthKey = cleanString(options?.monthKey);
   const monthKey =
     (isMonthKey(requestedMonthKey) && requestedMonthKey) ||
@@ -916,6 +925,17 @@ export const ensureCurrentMonthPaymentRecord = async (
       // to reconstruct the admin Demo Clock from their own localStorage.
       currentBillingMonthKey: monthKey,
       currentBillingDemoMode: demoMode,
+      // Persist the exact effective date too. This lets the PayMongo webhook
+      // record the Demo Clock date even though the webhook runs on the server
+      // where browser localStorage/getAppDate() is unavailable.
+      currentBillingDate:
+        billingDate.monthKey === monthKey
+          ? billingDate.isoDate
+          : persistedDemoMode &&
+              /^\d{4}-\d{2}-\d{2}$/.test(persistedBillingDate) &&
+              persistedBillingDate.slice(0, 7) === monthKey
+            ? persistedBillingDate
+            : `${monthKey}-01`,
       currentMonthDue: currentMonthRecord.totalDue,
       remainingBalance: currentMonthRecord.remainingBalance,
       paymentStatus: currentMonthRecord.status,
@@ -958,6 +978,16 @@ export const ensureCurrentMonthPaymentRecord = async (
       paymentHistory,
       currentMonthDue: currentMonthRecord.totalDue,
       remainingBalance: currentMonthRecord.remainingBalance,
+      currentBillingMonthKey: monthKey,
+      currentBillingDemoMode: demoMode,
+      currentBillingDate:
+        billingDate.monthKey === monthKey
+          ? billingDate.isoDate
+          : persistedDemoMode &&
+              /^\d{4}-\d{2}-\d{2}$/.test(persistedBillingDate) &&
+              persistedBillingDate.slice(0, 7) === monthKey
+            ? persistedBillingDate
+            : `${monthKey}-01`,
     } as unknown as User;
   });
 };
@@ -1070,6 +1100,9 @@ export const updateResidentPaymentForMonth = async ({
     remainingBalance,
     status,
     datePaid: status === "Paid" ? shortDate : "-",
+    // This function is the Admin manual status action, so a manual Paid update
+    // is recorded as Cash. Switching back to Not Paid clears the method.
+    paymentMethod: status === "Paid" ? "Cash" : "-",
     createdAt: previousRecord?.createdAt ?? timestamp,
     updatedAt: timestamp,
   };

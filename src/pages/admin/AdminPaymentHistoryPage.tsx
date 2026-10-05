@@ -37,6 +37,7 @@ type PaymentHistoryRow = {
   remainingBalance: number;
   status: PaymentStatus;
   datePaid: string;
+  paymentMethod: string;
   createdAt?: unknown;
   updatedAt?: unknown;
 };
@@ -82,6 +83,20 @@ const peso = (amount: number) =>
 
 const clean = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
+
+const formatPaymentMethod = (value: unknown, status: PaymentStatus) => {
+  if (status !== "Paid") return "-";
+
+  const method = clean(value).toLowerCase();
+  if (!method) return "Cash";
+  if (method === "gcash") return "GCash";
+  if (method === "card") return "Bank Card";
+  if (method === "paymaya" || method === "maya") return "Maya";
+  if (method === "qrph") return "Bank / QRPh";
+  if (method === "cash") return "Cash";
+
+  return clean(value);
+};
 
 const toNumber = (value: unknown, fallback = 0) => {
   const numberValue = Number(value);
@@ -285,6 +300,7 @@ const getResidentHistory = (
           clean(row.datePaid) ||
           clean(row.paymentDate) ||
           (rowStatus === "Paid" ? getPaymentDate(user) : "-"),
+        paymentMethod: formatPaymentMethod(row.paymentMethod, rowStatus),
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
       };
@@ -866,6 +882,7 @@ function ResidentPaymentSummaryView({
                     </TableHead>
                     <TableHead className="text-right">Status</TableHead>
                     <TableHead className="text-right">Date Paid</TableHead>
+                    <TableHead className="text-right">Payment Method</TableHead>
                   </tr>
                 </thead>
 
@@ -898,6 +915,10 @@ function ResidentPaymentSummaryView({
 
                       <td className="whitespace-nowrap px-5 py-4 text-right text-sm font-semibold text-zinc-800">
                         {row.datePaid}
+                      </td>
+
+                      <td className="whitespace-nowrap px-5 py-4 text-right text-sm font-semibold text-zinc-800">
+                        {row.paymentMethod}
                       </td>
                     </tr>
                   ))}

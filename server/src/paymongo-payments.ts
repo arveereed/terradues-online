@@ -128,6 +128,15 @@ export const createPaymongoCheckoutHandler: RequestHandler = async (
       userId: clean(resident.user_id) || residentId,
       monthKey: requestedMonthKey,
       monthLabel: clean(targetBill.monthLabel) || requestedMonthKey,
+      // Snapshot the TerraDues billing date at checkout creation. In Demo Clock
+      // mode this is the simulated date persisted by the billing initializer.
+      // The webhook must not use the server's real-world date for paymentHistory.
+      billingDate:
+        /^\d{4}-\d{2}-\d{2}$/.test(clean(resident.currentBillingDate)) &&
+        clean(resident.currentBillingDate).slice(0, 7) === requestedMonthKey
+          ? clean(resident.currentBillingDate)
+          : null,
+      demoMode: resident.currentBillingDemoMode === true,
       amount,
       amountCentavos,
       currency: "PHP",
@@ -366,17 +375,29 @@ export const paymongoWebhookHandler: RequestHandler = async (req, res) => {
       }
 
       const paidAt = Timestamp.now();
-      // datePaid is the real date PayMongo confirmed the payment. Demo Clock
-      // selects which billing month is being tested; it must not spoof the
-      // provider payment timestamp.
-      const paidDate = new Intl.DateTimeFormat("en-PH", {
-        timeZone: "Asia/Manila",
-        month: "2-digit",
-        day: "2-digit",
-        year: "2-digit",
-      })
-        .format(new Date())
-        .replaceAll("/", "-");
+
+      // paymentHistory follows TerraDues' effective billing clock.
+      // If Demo Clock is active, billingDate belongs to the simulated month/day.
+      // If Demo Clock is off, billingDate is the real TerraDues date persisted
+      // by the same billing initializer. paidAt still remains the real server
+      // timestamp for audit/provider purposes.
+      const billingDate = clean(paymentTx.billingDate);
+      let paidDate: string;
+
+      if (
+        /^\d{4}-\d{2}-\d{2}$/.test(billingDate) &&
+        billingDate.slice(0, 7) === clean(paymentTx.monthKey)
+      ) {
+        const [year, month, day] = billingDate.split("-");
+        paidDate = `${month}-${day}-${year.slice(-2)}`;
+      } else {
+        // Backward-compatible fallback for checkout transactions created before
+        // billingDate was added. Keep the date inside the month actually paid.
+        const [year, month] = clean(paymentTx.monthKey).split("-");
+        paidDate = `${month}-01-${year.slice(-2)}`;
+      }
+
+      const providerMethod = clean(successfulPayment?.attributes?.source?.type);
 
       history[targetIndex] = {
         ...target,
@@ -387,6 +408,9 @@ export const paymongoWebhookHandler: RequestHandler = async (req, res) => {
         remainingBalance: 0,
         status: "Paid",
         datePaid: paidDate,
+        // Persist the verified PayMongo method on the monthly history row so
+        // both resident and admin Payment History pages can display it.
+        paymentMethod: providerMethod || "PayMongo",
         updatedAt: paidAt,
       };
       history.sort((a, b) =>
@@ -413,7 +437,7 @@ export const paymongoWebhookHandler: RequestHandler = async (req, res) => {
         status: "paid",
         paidAt,
         providerPaymentId: clean(successfulPayment.id),
-        paymentMethod: clean(successfulPayment?.attributes?.source?.type),
+        paymentMethod: providerMethod,
         updatedAt: paidAt,
       });
 

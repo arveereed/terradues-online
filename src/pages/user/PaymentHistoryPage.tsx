@@ -13,6 +13,7 @@ type PaymentItem = {
   amount: number;
   collection: number;
   remainingBalance: number;
+  paymentMethod: string;
   sortDate: number;
 };
 
@@ -34,6 +35,7 @@ type FirestorePaymentRow = {
   additionalCharge?: number | string;
   collection?: number | string;
   remainingBalance?: number | string;
+  paymentMethod?: string;
   paid?: number | string;
   payment?: number | string;
   createdAt?: unknown;
@@ -68,6 +70,20 @@ const toNumber = (value: unknown, fallback = 0) => {
 
 const clean = (value: unknown) =>
   typeof value === "string" ? value.trim() : "";
+
+const formatPaymentMethod = (value: unknown, status: PaymentStatus) => {
+  if (status !== "Paid") return "-";
+
+  const method = clean(value).toLowerCase();
+  if (!method) return "Cash";
+  if (method === "gcash") return "GCash";
+  if (method === "card") return "Bank Card";
+  if (method === "paymaya" || method === "maya") return "Maya";
+  if (method === "qrph") return "Bank / QRPh";
+  if (method === "cash") return "Cash";
+
+  return clean(value);
+};
 
 const isEmptyPaymentDate = (value: unknown) => {
   const text = clean(value).toLowerCase();
@@ -249,6 +265,7 @@ const getPaymentHistoryFromUser = (user: unknown): PaymentItem[] => {
         amount,
         collection: status === "Paid" ? collection : 0,
         remainingBalance: status === "Paid" ? 0 : remainingBalance,
+        paymentMethod: formatPaymentMethod(item.paymentMethod, status),
         sortDate,
       };
     })
@@ -639,8 +656,13 @@ export default function PaymentHistory({}: Props) {
                     </p>
                   </div>
 
-                  <div className={`text-xs font-extrabold ${statusClass}`}>
-                    {item.status}
+                  <div>
+                    <div className={`text-xs font-extrabold ${statusClass}`}>
+                      {item.status}
+                    </div>
+                    <p className="mt-1 text-[11px] font-semibold text-zinc-500">
+                      {item.paymentMethod}
+                    </p>
                   </div>
 
                   <div className="ml-auto">
@@ -667,6 +689,7 @@ export default function PaymentHistory({}: Props) {
                 <tr className="text-left text-xs font-semibold text-zinc-600">
                   <th className="px-4 py-3">Date</th>
                   <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Payment Method</th>
                   <th className="px-4 py-3">Amount</th>
                 </tr>
               </thead>
@@ -674,7 +697,7 @@ export default function PaymentHistory({}: Props) {
                 {loading ? (
                   <tr className="border-t border-zinc-100">
                     <td
-                      colSpan={3}
+                      colSpan={4}
                       className="px-4 py-6 text-sm font-semibold text-zinc-500"
                     >
                       Loading payment history...
@@ -702,6 +725,9 @@ export default function PaymentHistory({}: Props) {
                             {item.status}
                           </span>
                         </td>
+                        <td className="px-4 py-3 text-sm font-semibold text-zinc-700">
+                          {item.paymentMethod}
+                        </td>
                         <td className="px-4 py-3 text-sm font-extrabold text-zinc-900">
                           {peso(item.amount)}
                         </td>
@@ -711,7 +737,7 @@ export default function PaymentHistory({}: Props) {
                 ) : (
                   <tr className="border-t border-zinc-100">
                     <td
-                      colSpan={3}
+                      colSpan={4}
                       className="px-4 py-6 text-sm font-semibold text-zinc-500"
                     >
                       No payment history found.
