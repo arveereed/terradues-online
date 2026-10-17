@@ -433,6 +433,36 @@ export const paymongoWebhookHandler: RequestHandler = async (req, res) => {
         updatedAt: paidAt,
       });
 
+      // Transaction-specific confirmation: retry-safe and independent of bill reminder.
+      const confirmationId = `${residentId}-${clean(paymentTx.monthKey)}-payment-success-${transactionId}`;
+      const confirmationRef = db
+        .collection("notifications")
+        .doc(confirmationId);
+      const paidAmount = number(paymentTx.amount);
+      const monthLabel = clean(target.monthLabel) || clean(paymentTx.monthKey);
+      const paymentMethod = providerMethod || "PayMongo";
+      tx.set(confirmationRef, {
+        id: confirmationId,
+        residentId,
+        userId: clean(resident.user_id),
+        title: "Payment Received Successfully",
+        message: `We received your payment of ₱${paidAmount.toLocaleString("en-PH", { minimumFractionDigits: 2 })} for ${monthLabel} through ${paymentMethod}. This bill is now marked Paid with no remaining balance. You can view the transaction in Payment History. Thank you for paying your monthly dues.`,
+        type: "payment_success",
+        monthKey: clean(paymentTx.monthKey),
+        monthLabel,
+        amount: paidAmount,
+        beginningBalance: number(target.beginningBalance),
+        currentCharges: number(target.currentCharges),
+        totalDue,
+        collection: number(paidMonth?.collection),
+        remainingBalance: 0,
+        paymentMethod,
+        paymentDate: paidDate,
+        transactionId,
+        unread: true,
+        createdAt: paidAt,
+      });
+
       tx.update(paymentRef, {
         status: "paid",
         paidAt,

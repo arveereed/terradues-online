@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useUser } from "@clerk/clerk-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { FileText, Image as ImageIcon, Trash2 } from "lucide-react";
+import { FileText, Image as ImageIcon } from "lucide-react";
 import AppInput from "../AppInput";
 import SettingsSectionShell from "../settings/SettingsSectionShell";
 import { useFirestoreUser } from "../../features/auth/hooks/useFirestoreUser";
@@ -569,7 +569,7 @@ function FileEditor({
           <FileText size={16} />
           {present ? "Replace" : "Upload"}
         </button>
-        {present && (
+        {/* {present && (
           <button
             type="button"
             onClick={onDelete}
@@ -578,7 +578,7 @@ function FileEditor({
             <Trash2 size={16} />
             Delete
           </button>
-        )}
+        )} */}
       </div>
       <p className="mt-2 text-xs font-medium text-zinc-600">
         {fileName ||

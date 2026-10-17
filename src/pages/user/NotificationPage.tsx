@@ -41,6 +41,8 @@ type NotificationItem = {
   collection?: number;
   remainingBalance?: number;
 
+  paymentMethod?: string;
+  paymentDate?: string;
   unread?: boolean;
   createdAt?: unknown;
 };
@@ -373,9 +375,11 @@ export default function NotificationPage({}: Props) {
             {sortedNotifications.map((notification: NotificationItem) => {
               const billing = getBilling(notification);
 
+              const isPaid = notification.type === "payment_success";
               const overdue =
-                notification.type === "unpaid_balance" ||
-                billing.beginningBalance > 0;
+                !isPaid &&
+                (notification.type === "unpaid_balance" ||
+                  billing.beginningBalance > 0);
 
               return (
                 <button
@@ -445,7 +449,12 @@ export default function NotificationPage({}: Props) {
                               : "bg-emerald-100 text-emerald-800"
                           }`}
                         >
-                          Due: {peso(billing.totalDue)}
+                          {isPaid ? "Paid" : "Due"}:{" "}
+                          {peso(
+                            isPaid
+                              ? (notification.amount ?? billing.collection)
+                              : billing.totalDue,
+                          )}
                         </span>
 
                         <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-500">
@@ -485,7 +494,8 @@ export default function NotificationPage({}: Props) {
         (() => {
           const billing = getBilling(selected);
 
-          const hasCarryOver = billing.beginningBalance > 0;
+          const isPaid = selected.type === "payment_success";
+          const hasCarryOver = !isPaid && billing.beginningBalance > 0;
 
           return (
             <div
@@ -555,11 +565,15 @@ export default function NotificationPage({}: Props) {
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <p className="text-xs font-bold uppercase tracking-wide text-zinc-500">
-                          Total amount due
+                          {isPaid ? "Payment received" : "Total amount due"}
                         </p>
 
                         <p className="mt-1 text-3xl font-black tracking-tight text-zinc-900">
-                          {peso(billing.totalDue)}
+                          {peso(
+                            isPaid
+                              ? (selected.amount ?? billing.collection)
+                              : billing.totalDue,
+                          )}
                         </p>
                       </div>
 
@@ -575,7 +589,7 @@ export default function NotificationPage({}: Props) {
 
                   <div className="mt-5">
                     <h3 className="text-sm font-black text-zinc-900">
-                      Payment breakdown
+                      Your Payment Details
                     </h3>
 
                     <div className="mt-3 overflow-hidden rounded-2xl border border-zinc-200">
@@ -636,23 +650,27 @@ export default function NotificationPage({}: Props) {
                   <div className="mt-5 rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-200">
                     <h3 className="flex items-center gap-2 text-sm font-black text-zinc-900">
                       <WalletCards size={17} />
-                      Why do I have to pay this amount?
+                      {isPaid
+                        ? "Payment confirmation"
+                        : "Why do I have to pay this amount?"}
                     </h3>
 
                     <p className="mt-2 text-sm leading-6 text-zinc-600">
-                      {hasCarryOver
-                        ? `You have ${peso(
-                            billing.beginningBalance,
-                          )} remaining from a previous month. That unpaid amount was carried forward and added to your current ${peso(
-                            billing.currentCharges,
-                          )} monthly charge, making your total due ${peso(
-                            billing.totalDue,
-                          )}.`
-                        : `There is no unpaid balance carried over from a previous month. Your ${peso(
-                            billing.totalDue,
-                          )} total due is your current monthly charge for ${
-                            selected.monthLabel ?? "this billing period"
-                          }.`}
+                      {isPaid
+                        ? `Your payment for ${selected.monthLabel ?? "this billing period"} has been recorded successfully. Payment method: ${selected.paymentMethod ?? "Not specified"}. Payment date: ${selected.paymentDate ?? "Not specified"}. Amount received: ${peso(selected.amount ?? billing.collection)}. Remaining balance for this bill: ${peso(billing.remainingBalance)}. Keep this notification for your records.`
+                        : hasCarryOver
+                          ? `You have ${peso(
+                              billing.beginningBalance,
+                            )} remaining from a previous month. That unpaid amount was carried forward and added to your current ${peso(
+                              billing.currentCharges,
+                            )} monthly charge, making your total due ${peso(
+                              billing.totalDue,
+                            )}.`
+                          : `There is no unpaid balance carried over from a previous month. Your ${peso(
+                              billing.totalDue,
+                            )} total due is your current monthly charge for ${
+                              selected.monthLabel ?? "this billing period"
+                            }.`}
                     </p>
                   </div>
 

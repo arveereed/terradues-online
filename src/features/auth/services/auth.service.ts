@@ -324,7 +324,9 @@ export type NotificationRecord = {
   userId: string;
   title: string;
   message: string;
-  type: "payment_reminder" | "unpaid_balance";
+  type: "payment_reminder" | "unpaid_balance" | "payment_success";
+  paymentMethod?: string;
+  paymentDate?: string;
   monthKey: string;
   monthLabel: string;
   amount: number;
@@ -957,7 +959,8 @@ export const ensureCurrentMonthPaymentRecord = async (
         remainingBalance: row.remainingBalance,
       });
 
-      // Repair old/wrong billing figures but preserve read state and original time.
+      // Monthly reminders are historical snapshots. Never rewrite after payment.
+      if (snap.exists()) continue;
       transaction.set(ref, {
         ...fresh,
         unread: snap.exists()
@@ -1142,16 +1145,36 @@ export const updateResidentPaymentForMonth = async ({
     remainingBalance,
   });
 
-  await setDoc(notificationRef, {
-    ...freshNotification,
-    unread: existingNotification.exists()
-      ? ((existingNotification.data() as NotificationRecord).unread ?? false)
-      : true,
-    createdAt: existingNotification.exists()
-      ? ((existingNotification.data() as NotificationRecord).createdAt ??
-        freshNotification.createdAt)
-      : freshNotification.createdAt,
-  });
+  // Keep the original billing reminder unchanged after a payment.
+  if (!existingNotification.exists()) {
+    await setDoc(notificationRef, freshNotification);
+  }
+
+  // A separate confirmation is generated for each transition into Paid.
+  // The deterministic ID prevents duplicate writes on repeated requests.
+  if (status === "Paid" && previousRecord?.status !== "Paid") {
+    const confirmationId = `${residentId}-${monthKey}-payment-success-${timestamp.toMillis()}`;
+    await setDoc(doc(db, "notifications", confirmationId), {
+      id: confirmationId,
+      residentId,
+      userId: cleanString(residentData.user_id),
+      title: "Payment Received Successfully",
+      message: `Your payment of ${new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(totalDue)} for ${monthLabel} has been recorded by the administrator. Payment method: Cash. Your remaining balance for this bill is ₱0. Thank you for paying your monthly dues.`,
+      type: "payment_success",
+      monthKey,
+      monthLabel,
+      amount: totalDue,
+      beginningBalance: previousBalance,
+      currentCharges: monthlyCharge,
+      totalDue,
+      collection: totalDue,
+      remainingBalance: 0,
+      paymentMethod: "Cash",
+      paymentDate: shortDate,
+      unread: true,
+      createdAt: timestamp,
+    });
+  }
 
   return {
     paymentStatus: status,
