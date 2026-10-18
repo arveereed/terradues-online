@@ -539,7 +539,6 @@ function FileEditor({
   hasExisting,
   error,
   onChoose,
-  onDelete,
 }: {
   title: string;
   required?: boolean;
