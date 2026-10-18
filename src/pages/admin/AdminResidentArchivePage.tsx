@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ArchiveRestore,
+  ClipboardList,
   ArrowLeft,
   Clock3,
   RefreshCw,
@@ -194,15 +195,25 @@ export default function AdminResidentArchivePage() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void loadArchive()}
-          disabled={loading}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-5 text-sm font-semibold text-white hover:bg-black disabled:opacity-60"
-        >
-          <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
-          Refresh
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => navigate("/admin/account-closure-requests")}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-white px-5 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
+          >
+            <ClipboardList size={17} />
+            View Account Closure Requests
+          </button>
+          <button
+            type="button"
+            onClick={() => void loadArchive()}
+            disabled={loading}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-5 text-sm font-semibold text-white hover:bg-black disabled:opacity-60"
+          >
+            <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
+            Refresh
+          </button>
+        </div>
       </header>
 
       {error && (

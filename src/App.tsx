@@ -35,6 +35,7 @@ import AdminPaymentHistoryPage from "./pages/admin/AdminPaymentHistoryPage";
 import AdminRegistrationRequestsPage from "./pages/admin/AdminRegistrationRequestsPage";
 import AdminSummaryReportPage from "./pages/admin/AdminSummaryReportPage";
 import AdminResidentArchivePage from "./pages/admin/AdminResidentArchivePage";
+import AdminAccountClosureRequestsPage from "./pages/admin/AdminAccountClosureRequestsPage";
 
 import { useFirestoreUser } from "./features/auth/hooks/useFirestoreUser";
 
@@ -176,6 +177,10 @@ function App() {
           <Route path="users/new" element={<AdminRegisterResidentPage />} />
 
           <Route path="users/archive" element={<AdminResidentArchivePage />} />
+          <Route
+            path="account-closure-requests"
+            element={<AdminAccountClosureRequestsPage />}
+          />
 
           <Route
             path="registration-requests"
