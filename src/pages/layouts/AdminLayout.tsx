@@ -22,7 +22,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   {
-    label: "Home/Dashboard",
+    label: "Home",
     to: "/admin",
     icon: Home,
   },

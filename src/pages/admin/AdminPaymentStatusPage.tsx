@@ -11,6 +11,8 @@ import {
 } from "@headlessui/react";
 import {
   Check,
+  AlertTriangle,
+  X,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -409,6 +411,10 @@ export default function AdminPaymentStatusPage() {
     {},
   );
   const [savingById, setSavingById] = useState<Record<string, boolean>>({});
+  const [pendingStatusChange, setPendingStatusChange] = useState<{
+    residentId: string;
+    next: PaymentStatus;
+  } | null>(null);
 
   const loadResidents = async () => {
     setLoading(true);
@@ -569,6 +575,21 @@ export default function AdminPaymentStatusPage() {
   const clearFilters = () => {
     setSelectedStatus(ALL_FILTER);
     setSelectedResidency(ALL_FILTER);
+  };
+
+  const requestStatusChange = (id: string, next: PaymentStatus) => {
+    const row = rows.find((item) => item.id === id);
+    if (!row || savingById[id]) return;
+    if ((statusById[id] ?? row.status) === next) return;
+    setPendingStatusChange({ residentId: id, next });
+  };
+
+  const confirmStatusChange = () => {
+    if (!pendingStatusChange) return;
+    const { residentId, next } = pendingStatusChange;
+    if (savingById[residentId]) return;
+    setPendingStatusChange(null);
+    void updateStatus(residentId, next);
   };
 
   const updateStatus = async (id: string, next: PaymentStatus) => {
@@ -862,7 +883,9 @@ export default function AdminPaymentStatusPage() {
                           <StatusSelectModern
                             value={status}
                             disabled={savingById[row.id] ?? false}
-                            onChange={(next) => void updateStatus(row.id, next)}
+                            onChange={(next) =>
+                              requestStatusChange(row.id, next)
+                            }
                           />
                         </td>
                       </tr>
@@ -884,6 +907,106 @@ export default function AdminPaymentStatusPage() {
           </>
         )}
       </section>
+
+      {pendingStatusChange &&
+        (() => {
+          const resident = rows.find(
+            (item) => item.id === pendingStatusChange.residentId,
+          );
+          if (!resident) return null;
+          const next = pendingStatusChange.next;
+          const current = statusById[resident.id] ?? resident.status;
+          return (
+            <div
+              className="fixed inset-0 z-[80] flex items-center justify-center bg-zinc-950/60 p-4 backdrop-blur-sm"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget)
+                  setPendingStatusChange(null);
+              }}
+            >
+              <div
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="payment-status-confirm-title"
+                aria-describedby="payment-status-confirm-description"
+                className="w-full max-w-md overflow-hidden rounded-3xl border border-zinc-200 bg-white p-5 shadow-2xl sm:p-7"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div
+                    className={cx(
+                      "flex size-12 shrink-0 items-center justify-center rounded-2xl",
+                      next === "Paid"
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-amber-50 text-amber-700",
+                    )}
+                  >
+                    <AlertTriangle size={23} />
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Close confirmation"
+                    onClick={() => setPendingStatusChange(null)}
+                    className="grid size-9 place-items-center rounded-xl text-zinc-500 hover:bg-zinc-100"
+                  >
+                    <X size={19} />
+                  </button>
+                </div>
+                <h2
+                  id="payment-status-confirm-title"
+                  className="mt-4 text-xl font-bold tracking-tight text-zinc-950"
+                >
+                  Confirm payment status change
+                </h2>
+                <p
+                  id="payment-status-confirm-description"
+                  className="mt-2 text-sm leading-6 text-zinc-600"
+                >
+                  Change{" "}
+                  <span className="font-semibold text-zinc-900">
+                    {fullName(resident) || "this resident"}
+                  </span>{" "}
+                  from <span className="font-semibold">{current}</span> to{" "}
+                  <span className="font-semibold">{next}</span> for the current
+                  billing month?
+                </p>
+                <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm">
+                  <div className="flex justify-between gap-3">
+                    <span className="text-zinc-500">Amount due</span>
+                    <span className="font-semibold text-zinc-900">
+                      {peso(resident.amount)}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-zinc-500">
+                    {next === "Paid"
+                      ? "This will record the current month's bill as paid and update the resident's payment history."
+                      : "This will mark the current month's bill as unpaid and update the resident's outstanding balance and payment history."}
+                  </p>
+                </div>
+                <div className="mt-6 grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setPendingStatusChange(null)}
+                    className="h-11 rounded-xl border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmStatusChange}
+                    className={cx(
+                      "h-11 rounded-xl px-3 text-sm font-semibold text-white shadow-sm transition",
+                      next === "Paid"
+                        ? "bg-emerald-600 hover:bg-emerald-700"
+                        : "bg-rose-600 hover:bg-rose-700",
+                    )}
+                  >
+                    Confirm {next}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
     </div>
   );
 }

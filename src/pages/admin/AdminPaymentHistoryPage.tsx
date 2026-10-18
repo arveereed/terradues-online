@@ -396,6 +396,7 @@ export default function AdminPaymentHistoryPage() {
     useState<StatusFilter>(ALL_FILTER);
   const [selectedResidency, setSelectedResidency] =
     useState<ResidencyFilter>(ALL_FILTER);
+  const [selectedBlock, setSelectedBlock] = useState(ALL_FILTER);
   const [currentPage, setCurrentPage] = useState(1);
 
   const loadResidents = async () => {
@@ -436,7 +437,17 @@ export default function AdminPaymentHistoryPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [query, selectedStatus, selectedResidency]);
+  }, [query, selectedStatus, selectedResidency, selectedBlock]);
+
+  const blockOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(rows.map((item) => item.block.trim()).filter(Boolean)),
+      ).sort((a, b) =>
+        a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }),
+      ),
+    [rows],
+  );
 
   const filteredRows = useMemo(() => {
     const search = query.trim().toLowerCase();
@@ -464,9 +475,11 @@ export default function AdminPaymentHistoryPage() {
         selectedResidency === ALL_FILTER ||
         row.residencyType === selectedResidency;
 
-      return matchesSearch && matchesStatus && matchesResidency;
+      const matchesBlock =
+        selectedBlock === ALL_FILTER || row.block === selectedBlock;
+      return matchesSearch && matchesStatus && matchesResidency && matchesBlock;
     });
-  }, [query, rows, selectedResidency, selectedStatus]);
+  }, [query, rows, selectedResidency, selectedStatus, selectedBlock]);
 
   const totalPages = Math.max(
     1,
@@ -498,7 +511,8 @@ export default function AdminPaymentHistoryPage() {
 
   const activeFilterCount =
     Number(selectedStatus !== ALL_FILTER) +
-    Number(selectedResidency !== ALL_FILTER);
+    Number(selectedResidency !== ALL_FILTER) +
+    Number(selectedBlock !== ALL_FILTER);
 
   const showingStart = filteredRows.length === 0 ? 0 : startIndex + 1;
   const showingEnd = Math.min(endIndex, filteredRows.length);
@@ -506,6 +520,7 @@ export default function AdminPaymentHistoryPage() {
   const clearFilters = () => {
     setSelectedStatus(ALL_FILTER);
     setSelectedResidency(ALL_FILTER);
+    setSelectedBlock(ALL_FILTER);
   };
 
   if (selectedResident) {
@@ -543,6 +558,26 @@ export default function AdminPaymentHistoryPage() {
           >
             <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
             {loading ? "Refreshing..." : "Refresh"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowFilters((current) => !current)}
+            aria-expanded={showFilters}
+            aria-controls="admin-filters-panel"
+            className={`inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold transition sm:px-5 ${
+              showFilters || activeFilterCount > 0
+                ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
+            }`}
+          >
+            <SlidersHorizontal size={17} />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="grid size-5 place-items-center rounded-full bg-emerald-600 text-[11px] font-semibold text-white">
+                {activeFilterCount}
+              </span>
+            )}
           </button>
           <button
             type="button"
@@ -591,29 +626,14 @@ export default function AdminPaymentHistoryPage() {
               placeholder="Search resident name, address, amount, status..."
             />
           </div>
-
-          <button
-            type="button"
-            onClick={() => setShowFilters((current) => !current)}
-            className={`inline-flex h-12 items-center justify-center gap-2 rounded-xl border px-5 text-sm font-semibold transition ${
-              showFilters || activeFilterCount > 0
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
-            }`}
-          >
-            <SlidersHorizontal size={17} />
-            Filters
-            {activeFilterCount > 0 && (
-              <span className="grid size-5 place-items-center rounded-full bg-emerald-600 text-[11px] font-semibold text-white">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
         </div>
 
         {showFilters && (
-          <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
+          <div
+            id="admin-filters-panel"
+            className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4"
+          >
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end">
               <FilterButtonGroup
                 label="Payment Status"
                 value={selectedStatus}
@@ -627,6 +647,28 @@ export default function AdminPaymentHistoryPage() {
                 options={RESIDENCY_FILTER_OPTIONS}
                 onChange={setSelectedResidency}
               />
+
+              <div className="w-full min-w-0 lg:max-w-xs">
+                <label
+                  htmlFor="resident-block-filter"
+                  className="mb-2 block text-xs font-semibold uppercase tracking-wide text-zinc-500"
+                >
+                  Block
+                </label>
+                <select
+                  id="resident-block-filter"
+                  value={selectedBlock}
+                  onChange={(event) => setSelectedBlock(event.target.value)}
+                  className="h-11 w-full min-w-0 rounded-xl border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-700 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                >
+                  <option value={ALL_FILTER}>All Blocks</option>
+                  {blockOptions.map((block) => (
+                    <option key={block} value={block}>
+                      {block}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               <button
                 type="button"
