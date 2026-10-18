@@ -21,6 +21,7 @@ import {
   UserPlus,
   Phone,
   RefreshCw,
+  Printer,
   Search,
   SlidersHorizontal,
   Trash2,
@@ -423,11 +424,11 @@ export default function AdminListOfResidentsPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:justify-end">
           <button
             type="button"
             onClick={() => navigate("/admin/users/new")}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+            className="col-span-2 inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-center text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 sm:col-span-1 sm:px-5 sm:text-sm"
           >
             <UserPlus size={17} />
             Register New Resident
@@ -435,7 +436,7 @@ export default function AdminListOfResidentsPage() {
           <button
             type="button"
             onClick={() => navigate("/admin/users/archive")}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-5 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100"
+            className="inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100 sm:px-5"
           >
             <Archive size={17} />
             Archive
@@ -444,42 +445,43 @@ export default function AdminListOfResidentsPage() {
             type="button"
             onClick={() => void loadResidents()}
             disabled={loading}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:px-5"
           >
             <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
-            Refresh
+            {loading ? "Refreshing..." : "Refresh"}
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              printAdminTable({
+                title: "List of Residents",
+                headers: [
+                  "Name",
+                  "Gender",
+                  "Residency",
+                  "Address",
+                  "Contact Number",
+                  "Email",
+                ],
+                rows: filteredResidents.map((r) => [
+                  getResidentName(r),
+                  r.gender,
+                  r.userType,
+                  getResidentAddress(r),
+                  r.contactNumber,
+                  r.email,
+                ]),
+                subtitle:
+                  "All currently filtered records (including other pages).",
+              })
+            }
+            disabled={loading || filteredResidents.length === 0}
+            className="col-span-2 inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-xl border border-emerald-600 bg-white px-3 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-1 sm:px-5"
+          >
+            <Printer size={17} />
+            Print Table
           </button>
         </div>
-        <button
-          type="button"
-          onClick={() =>
-            printAdminTable({
-              title: "List of Residents",
-              headers: [
-                "Name",
-                "Gender",
-                "Residency",
-                "Address",
-                "Contact Number",
-                "Email",
-              ],
-              rows: filteredResidents.map((r) => [
-                getResidentName(r),
-                r.gender,
-                r.userType,
-                getResidentAddress(r),
-                r.contactNumber,
-                r.email,
-              ]),
-              subtitle:
-                "All currently filtered records (including other pages).",
-            })
-          }
-          disabled={loading || filteredResidents.length === 0}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-emerald-600 bg-white px-5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Print Table
-        </button>
       </header>
 
       {dbError && (

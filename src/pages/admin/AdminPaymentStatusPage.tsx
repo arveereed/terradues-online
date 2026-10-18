@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ImagePlus,
+  Printer,
   RefreshCw,
   Search,
   SlidersHorizontal,
@@ -666,37 +667,50 @@ export default function AdminPaymentStatusPage() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void loadResidents()}
-          disabled={loading}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
-          Refresh
-        </button>
-        <button
-          type="button"
-          onClick={() =>
-            printAdminTable({
-              title: "Payment Status",
-              headers: ["Resident", "Address", "Amount Due", "Date", "Status"],
-              rows: filteredRows.map((r) => [
-                fullName(r),
-                getPaymentAddress(r),
-                peso(r.amount),
-                formatShortDate(r.date),
-                statusById[r.id] ?? r.status,
-              ]),
-              subtitle:
-                "All currently filtered records (including other pages).",
-            })
-          }
-          disabled={loading || filteredRows.length === 0}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-emerald-600 bg-white px-5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Print Table
-        </button>
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-3">
+          <button
+            type="button"
+            onClick={() => void loadResidents()}
+            disabled={loading}
+            className="inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 sm:px-5"
+          >
+            <RefreshCw
+              size={17}
+              className={`shrink-0 ${loading ? "animate-spin" : ""}`}
+              aria-hidden="true"
+            />
+            <span>{loading ? "Refreshing..." : "Refresh"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              printAdminTable({
+                title: "Payment Status",
+                headers: [
+                  "Resident",
+                  "Address",
+                  "Amount Due",
+                  "Date",
+                  "Status",
+                ],
+                rows: filteredRows.map((r) => [
+                  fullName(r),
+                  getPaymentAddress(r),
+                  peso(r.amount),
+                  formatShortDate(r.date),
+                  statusById[r.id] ?? r.status,
+                ]),
+                subtitle:
+                  "All currently filtered records (including other pages).",
+              })
+            }
+            disabled={loading || filteredRows.length === 0}
+            className="inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-xl border border-emerald-600 bg-white px-3 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-50 sm:px-5"
+          >
+            <Printer size={17} className="shrink-0" aria-hidden="true" />
+            <span>Print Table</span>
+          </button>
+        </div>
       </header>
 
       {dbError && (
