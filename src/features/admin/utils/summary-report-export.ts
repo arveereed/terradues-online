@@ -101,14 +101,20 @@ const getLastAutoTableFinalY = (document: jsPDF, fallback: number) => {
 };
 
 const drawPdfPageHeader = (document: jsPDF, report: SummaryReportData) => {
-  document.setTextColor(22, 101, 52);
+  // Vector brand mark prints sharply without depending on an external image URL.
+  document.setFillColor(5, 150, 105);
+  document.roundedRect(PDF_PAGE_MARGIN, 6, 12, 12, 3, 3, "F");
+  document.setTextColor(255, 255, 255);
   document.setFont("helvetica", "bold");
+  document.setFontSize(9);
+  document.text("TD", PDF_PAGE_MARGIN + 6, 13.7, { align: "center" });
+  document.setTextColor(22, 101, 52);
   document.setFontSize(17);
-  document.text(PROJECT_NAME, PDF_PAGE_MARGIN, 14);
+  document.text(PROJECT_NAME, PDF_PAGE_MARGIN + 16, 14);
 
   document.setTextColor(39, 39, 42);
   document.setFontSize(10);
-  document.text(ORGANIZATION_NAME, PDF_PAGE_MARGIN, 20);
+  document.text(ORGANIZATION_NAME, PDF_PAGE_MARGIN + 16, 20);
 
   document.setFont("helvetica", "normal");
   document.setTextColor(82, 82, 91);

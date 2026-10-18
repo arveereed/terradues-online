@@ -562,6 +562,80 @@ export default function AdminSummaryReportPage() {
     }
   };
 
+  const handlePrintAnnual = () => {
+    if (!sourceData || filterYear === null) {
+      setFeedback({ type: "error", message: "Select a year before printing." });
+      return;
+    }
+
+    // Generate from the selected year, not the last generated monthly report.
+    const annual = createSummaryReport({
+      residents: sourceData.residents,
+      month: 12,
+      year: filterYear,
+    });
+    const months = annual.monthlySummary;
+    const currency = (value: number) => formatSummaryReportCurrency(value);
+    const sum = (key: "totalCollected" | "expectedCollection") =>
+      months.reduce((total, month) => total + month[key], 0);
+    const latestMonth = [...months]
+      .reverse()
+      .find((month) => month.hasPaymentRecords);
+    const printable = window.open("", "_blank");
+    if (!printable) {
+      setFeedback({
+        type: "error",
+        message: "Allow pop-ups to print the annual report.",
+      });
+      return;
+    }
+    const rows = months
+      .map(
+        (month) => `
+      <tr><td>${month.month}</td><td>${month.totalResidents}</td>
+      <td>${month.paidResidents}</td><td>${month.unpaidResidents}</td>
+      <td>${currency(month.expectedCollection)}</td>
+      <td>${currency(month.totalCollected)}</td>
+      <td>${currency(month.remainingBalance)}</td></tr>`,
+      )
+      .join("");
+    printable.document.write(`<!doctype html><html><head><meta charset="utf-8"/>
+      <title>TerraDues Annual Summary ${filterYear}</title>
+       <style>
+       @page { size: A4 landscape; margin: 14mm; }
+       * { box-sizing: border-box; }
+       body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #18181b; }
+       .report-brand { display: table; width: 100%; border-bottom: 2px solid #059669; padding-bottom: 13px; margin-bottom: 12px; }
+       .brand-mark, .brand-copy { display: table-cell; vertical-align: middle; }
+       .brand-mark { width: 58px; }
+       .td-mark { width: 46px; height: 46px; line-height: 46px; text-align: center; border-radius: 11px; background: #059669; color: #fff; font-size: 17px; font-weight: 900; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+       .brand-copy strong { display: block; font-size: 13px; letter-spacing: 1px; color: #047857; margin: 0 0 4px; }
+       .brand-copy h1 { font-size: 22px; line-height: 1.2; margin: 0; }
+       .report-meta { font-size: 12px; color: #52525b; margin: 0 0 18px; }
+       table { border-collapse: collapse; width: 100%; font-size: 11px; margin-top: 12px; }
+       th,td { border: 1px solid #d4d4d8; padding: 9px; text-align: right; }
+       th:first-child,td:first-child { text-align: left; }
+       th { background: #e4f3eb; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+       tfoot td { font-weight: bold; background: #f4f4f5; }
+       .note { margin-top: 16px; font-size: 11px; }
+       @media print { button { display: none; } }
+       </style>
+       </head><body><div class="report-brand"><div class="brand-mark"><div class="td-mark">TD</div></div><div class="brand-copy"><strong>TERRA DUES</strong><h1>Annual Financial Summary</h1></div></div>
+       <p class="report-meta">Reporting year: ${filterYear} | Printed: ${new Date().toLocaleString("en-PH")}</p>
+      <table><thead><tr><th>Month</th><th>Residents</th><th>Paid</th><th>Not Paid</th>
+      <th>Amount Billed</th><th>Collected</th><th>Remaining Balance</th></tr></thead>
+      <tbody>${rows}</tbody><tfoot><tr><td>Annual totals</td><td colspan="3">—</td>
+      <td>${currency(sum("expectedCollection"))}</td>
+      <td>${currency(sum("totalCollected"))}</td>
+      <td>${latestMonth ? currency(latestMonth.remainingBalance) : "—"}</td></tr></tfoot></table>
+      <p class="note">Remaining balance in the annual totals row is the last recorded month's balance,
+      not a sum of carried-forward monthly balances. Months without payment records may show zero amounts.</p>
+      <button onclick="window.print()">Print annual report</button></body></html>`);
+    printable.document.close();
+    printable.focus();
+    printable.onload = () => printable.print();
+  };
+
   const handlePrint = () => {
     if (!report || !printReportRef.current) {
       setFeedback({
@@ -693,6 +767,19 @@ export default function AdminSummaryReportPage() {
         ref={printReportRef}
         className="summary-report-print-area space-y-5 sm:space-y-6"
       >
+        <div className="print-only hidden items-center gap-3 border-b-2 border-emerald-700 pb-3 mb-4">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600 font-black text-white">
+            TD
+          </div>
+          <div>
+            <p className="text-sm font-black tracking-widest text-emerald-800">
+              TERRA DUES
+            </p>
+            <p className="text-xs text-zinc-600">
+              Homeowners Association · Official Report
+            </p>
+          </div>
+        </div>
         <section className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-zinc-200">
           <div className="h-1.5 bg-linear-to-r from-emerald-600 via-emerald-500 to-teal-400" />
 
@@ -816,7 +903,17 @@ export default function AdminSummaryReportPage() {
                     className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-xs font-bold text-zinc-700 shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50 active:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Printer size={15} />
-                    Print Report
+                    Print Monthly Report
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handlePrintAnnual}
+                    disabled={controlsDisabled || isFetching}
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-800 shadow-sm transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Printer size={15} />
+                    Print Whole Year
                   </button>
 
                   <button

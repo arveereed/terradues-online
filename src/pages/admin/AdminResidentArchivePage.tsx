@@ -41,15 +41,62 @@ const fullName = (resident: ArchivedResident) =>
     .filter(Boolean)
     .join(" ");
 
-const daysRemaining = (resident: ArchivedResident) => {
-  const deletionDate = timestampToDate(resident.scheduledDeletionAt);
+const getDeletionDate = (resident: ArchivedResident): Date | null => {
+  const scheduled = timestampToDate(resident.scheduledDeletionAt);
+  const archived = timestampToDate(resident.archivedAt);
+  if (!archived) return scheduled;
+  const fiveYearDate = new Date(archived);
+  fiveYearDate.setUTCFullYear(fiveYearDate.getUTCFullYear() + 5);
+  return scheduled && scheduled > fiveYearDate ? scheduled : fiveYearDate;
+};
 
-  if (!deletionDate) return 30;
+const formatTimeRemaining = (deletionDate: Date | null): string => {
+  if (!deletionDate || Number.isNaN(deletionDate.getTime()))
+    return "Date unavailable";
 
-  return Math.max(
-    0,
-    Math.ceil((deletionDate.getTime() - Date.now()) / 86_400_000),
+  const today = new Date();
+  const start = new Date(
+    Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()),
   );
+  const end = new Date(
+    Date.UTC(
+      deletionDate.getFullYear(),
+      deletionDate.getMonth(),
+      deletionDate.getDate(),
+    ),
+  );
+  if (end <= start) return "Scheduled for permanent deletion";
+
+  // Count complete calendar years and months, then the remaining days.
+  let cursor = start;
+  let years = 0;
+  let months = 0;
+  const addMonths = (date: Date, count: number) => {
+    const target = new Date(date);
+    const day = target.getUTCDate();
+    target.setUTCDate(1);
+    target.setUTCMonth(target.getUTCMonth() + count);
+    const lastDay = new Date(
+      Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0),
+    ).getUTCDate();
+    target.setUTCDate(Math.min(day, lastDay));
+    return target;
+  };
+  while (addMonths(cursor, 12) <= end) {
+    cursor = addMonths(cursor, 12);
+    years++;
+  }
+  while (addMonths(cursor, 1) <= end) {
+    cursor = addMonths(cursor, 1);
+    months++;
+  }
+  const days = Math.round((end.getTime() - cursor.getTime()) / 86_400_000);
+  const parts = [
+    years ? `${years} year${years === 1 ? "" : "s"}` : "",
+    months ? `${months} month${months === 1 ? "" : "s"}` : "",
+    days ? `${days} day${days === 1 ? "" : "s"}` : "",
+  ].filter(Boolean);
+  return `${parts.join(", ")} left`;
 };
 
 export default function AdminResidentArchivePage() {
@@ -142,7 +189,7 @@ export default function AdminResidentArchivePage() {
           </h1>
 
           <p className="mt-1 text-sm font-medium text-zinc-500">
-            Deleted residents stay here for 30 days before automatic permanent
+            Deleted residents stay here for 5 years before automatic permanent
             deletion.
           </p>
         </div>
@@ -192,7 +239,7 @@ export default function AdminResidentArchivePage() {
             <p className="mt-3 font-semibold text-zinc-900">Archive is empty</p>
 
             <p className="mt-1 text-sm text-zinc-500">
-              Residents you delete will appear here for 30 days.
+              Residents you delete will appear here for 5 years.
             </p>
           </div>
         ) : (
@@ -220,11 +267,7 @@ export default function AdminResidentArchivePage() {
 
               <tbody className="divide-y divide-zinc-100">
                 {filtered.map((resident) => {
-                  const remaining = daysRemaining(resident);
-
-                  const deletionDate = timestampToDate(
-                    resident.scheduledDeletionAt,
-                  );
+                  const deletionDate = getDeletionDate(resident);
 
                   return (
                     <tr key={resident.id}>
@@ -245,7 +288,7 @@ export default function AdminResidentArchivePage() {
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2 text-sm font-semibold text-amber-700">
                           <Clock3 size={16} />
-                          {remaining} day{remaining === 1 ? "" : "s"} left
+                          {formatTimeRemaining(deletionDate)}
                         </div>
 
                         {deletionDate && (

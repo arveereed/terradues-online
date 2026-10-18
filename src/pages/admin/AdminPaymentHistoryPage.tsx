@@ -1,3 +1,4 @@
+import { printAdminTable } from "../../lib/printAdminTable";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
@@ -541,6 +542,27 @@ export default function AdminPaymentHistoryPage() {
           <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
           Refresh
         </button>
+        <button
+          type="button"
+          onClick={() =>
+            printAdminTable({
+              title: "Payment History - Residents",
+              headers: ["Resident", "Address", "Monthly Due", "Status"],
+              rows: filteredRows.map((r) => [
+                fullName(r),
+                getResidentAddress(r),
+                peso(r.amount),
+                r.status,
+              ]),
+              subtitle:
+                "All currently filtered records (including other pages).",
+            })
+          }
+          disabled={loading || filteredRows.length === 0}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-emerald-600 bg-white px-5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Print Table
+        </button>
       </header>
 
       {dbError && (
@@ -796,6 +818,43 @@ function ResidentPaymentSummaryView({
           </p>
         </div>
 
+        <button
+          type="button"
+          onClick={() =>
+            printAdminTable({
+              title: `Payment History - ${name}`,
+              headers: [
+                "Month",
+                "Previous Balance",
+                "Monthly Charge",
+                "Additional Charge",
+                "Total Due",
+                "Amount Paid",
+                "Remaining Balance",
+                "Status",
+                "Date Paid",
+                "Payment Method",
+              ],
+              rows: history.map((r) => [
+                r.monthLabel,
+                peso(r.beginningBalance),
+                peso(r.currentCharges),
+                peso(r.additionalCharges),
+                peso(r.totalDue),
+                peso(r.collection),
+                peso(r.remainingBalance),
+                r.status,
+                r.datePaid,
+                r.paymentMethod,
+              ]),
+              subtitle: `Resident: ${name}. All recorded billing months.`,
+            })
+          }
+          disabled={history.length === 0}
+          className="inline-flex h-11 items-center justify-center rounded-xl border border-emerald-600 bg-white px-5 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+        >
+          Print Payment History
+        </button>
         <button
           type="button"
           onClick={onBack}

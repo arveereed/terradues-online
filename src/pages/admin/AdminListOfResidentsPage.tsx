@@ -1,3 +1,4 @@
+import { printAdminTable } from "../../lib/printAdminTable";
 import {
   useEffect,
   useMemo,
@@ -449,6 +450,36 @@ export default function AdminListOfResidentsPage() {
             Refresh
           </button>
         </div>
+        <button
+          type="button"
+          onClick={() =>
+            printAdminTable({
+              title: "List of Residents",
+              headers: [
+                "Name",
+                "Gender",
+                "Residency",
+                "Address",
+                "Contact Number",
+                "Email",
+              ],
+              rows: filteredResidents.map((r) => [
+                getResidentName(r),
+                r.gender,
+                r.userType,
+                getResidentAddress(r),
+                r.contactNumber,
+                r.email,
+              ]),
+              subtitle:
+                "All currently filtered records (including other pages).",
+            })
+          }
+          disabled={loading || filteredResidents.length === 0}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-emerald-600 bg-white px-5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Print Table
+        </button>
       </header>
 
       {dbError && (
@@ -590,10 +621,10 @@ export default function AdminListOfResidentsPage() {
                             type="button"
                             onClick={() => handleArchiveResident(resident)}
                             className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
-                            title="Archive resident for 30 days"
+                            title="Archive resident for 5 years"
                           >
-                            <Trash2 size={14} />
-                            Delete
+                            <Archive size={14} />
+                            Archive
                           </button>
                         </div>
                       </td>
@@ -687,7 +718,7 @@ function ArchiveResidentModal({
         <div className="p-6 sm:p-7">
           <div className="flex items-start gap-4">
             <div className="grid size-12 shrink-0 place-items-center rounded-2xl bg-rose-50 text-rose-600 ring-1 ring-rose-100">
-              <Trash2 size={22} strokeWidth={2.2} />
+              <Archive size={22} strokeWidth={2.2} />
             </div>
 
             <div className="min-w-0 flex-1">
@@ -698,7 +729,7 @@ function ArchiveResidentModal({
                 id="archive-resident-title"
                 className="mt-1 text-xl font-bold tracking-tight text-zinc-950"
               >
-                Delete {name}?
+                Archive {name}?
               </h2>
               <p
                 id="archive-resident-description"
@@ -714,7 +745,7 @@ function ArchiveResidentModal({
               onClick={onCancel}
               disabled={isArchiving}
               className="grid size-9 shrink-0 place-items-center rounded-xl text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
-              aria-label="Close delete confirmation"
+              aria-label="Close archive confirmation"
             >
               <X size={18} />
             </button>
@@ -728,7 +759,7 @@ function ArchiveResidentModal({
                   You can still restore this resident
                 </p>
                 <p className="mt-1 text-xs font-medium leading-5 text-amber-800">
-                  The resident stays in the archive for 30 days. After that, the
+                  The resident stays in the archive for 5 years. After that, the
                   resident is permanently deleted if not restored.
                 </p>
               </div>
@@ -757,8 +788,8 @@ function ArchiveResidentModal({
                 </>
               ) : (
                 <>
-                  <Trash2 size={16} />
-                  Delete Resident
+                  <Archive size={16} />
+                  Archive Resident
                 </>
               )}
             </button>

@@ -158,9 +158,9 @@ export const archiveResident = async (residentId: string) => {
   }
 
   const archivedAt = Timestamp.now();
-  const scheduledDeletionAt = Timestamp.fromMillis(
-    archivedAt.toMillis() + 30 * 24 * 60 * 60 * 1000,
-  );
+  const deletionDate = archivedAt.toDate();
+  deletionDate.setUTCFullYear(deletionDate.getUTCFullYear() + 5);
+  const scheduledDeletionAt = Timestamp.fromDate(deletionDate);
 
   await updateDoc(userRef, {
     accountStatus: "archived",

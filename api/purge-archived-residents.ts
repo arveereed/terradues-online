@@ -180,7 +180,22 @@ export default async function handler(
           return false;
         }
 
-        return deletionTimestamp.toMillis() <= now.toMillis();
+        // Honor five calendar years for existing archives too, even if
+        // scheduledDeletionAt was created under the old 30-day policy.
+        const archivedTimestamp = resident.archivedAt;
+        if (
+          !archivedTimestamp ||
+          typeof archivedTimestamp.toDate !== "function"
+        ) {
+          return false; // Fail closed: never purge without an archive date.
+        }
+        const fiveYearDate = archivedTimestamp.toDate();
+        fiveYearDate.setUTCFullYear(fiveYearDate.getUTCFullYear() + 5);
+        const effectiveDeletionAt = Math.max(
+          deletionTimestamp.toMillis(),
+          fiveYearDate.getTime(),
+        );
+        return effectiveDeletionAt <= now.toMillis();
       },
     );
 

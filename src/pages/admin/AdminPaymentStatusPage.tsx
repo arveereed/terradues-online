@@ -1,3 +1,4 @@
+import { printAdminTable } from "../../lib/printAdminTable";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../../lib/firebase/firebase";
@@ -673,6 +674,28 @@ export default function AdminPaymentStatusPage() {
         >
           <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
           Refresh
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            printAdminTable({
+              title: "Payment Status",
+              headers: ["Resident", "Address", "Amount Due", "Date", "Status"],
+              rows: filteredRows.map((r) => [
+                fullName(r),
+                getPaymentAddress(r),
+                peso(r.amount),
+                formatShortDate(r.date),
+                statusById[r.id] ?? r.status,
+              ]),
+              subtitle:
+                "All currently filtered records (including other pages).",
+            })
+          }
+          disabled={loading || filteredRows.length === 0}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-emerald-600 bg-white px-5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Print Table
         </button>
       </header>
 

@@ -76,7 +76,7 @@ export default function UserLayout() {
 
       {/* Mobile Navbar */}
       <header className="sticky top-0 z-40 border-b border-zinc-200 bg-white/80 backdrop-blur lg:hidden">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3">
+        <div className="mx-auto flex w-full items-center justify-between px-3 py-3 sm:px-4">
           <button
             onClick={() => setOpen(true)}
             className="grid size-10 place-items-center rounded-xl border border-zinc-200 cursor-pointer bg-white text-zinc-800 shadow-sm hover:bg-zinc-50"
@@ -193,9 +193,9 @@ export default function UserLayout() {
       </div>
 
       {/* Desktop layout */}
-      <div className="relative mx-auto w-full max-w-6xl px-4 py-6 sm:py-10 lg:flex lg:gap-6">
+      <div className="relative mx-auto w-full max-w-none px-3 py-5 sm:px-4 lg:px-5 lg:py-6 lg:flex lg:gap-4">
         {/* Desktop Sidebar */}
-        <aside className="hidden lg:block lg:w-72">
+        <aside className="hidden lg:block lg:w-72 lg:shrink-0">
           <div className="min-h-[90vh] sticky top-6 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200">
             <div className="flex items-center gap-2">
               <div className="grid size-10 place-items-center rounded-2xl bg-emerald-600 text-white shadow-sm">
@@ -251,7 +251,7 @@ export default function UserLayout() {
         </aside>
 
         {/* Main Content */}
-        <main className="w-full">
+        <main className="min-w-0 w-full lg:flex-1">
           <Outlet />
         </main>
       </div>

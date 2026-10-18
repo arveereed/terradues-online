@@ -269,7 +269,7 @@ export default function AdminLayout() {
       </div>
 
       {/* Desktop layout */}
-      <div className="relative mx-auto w-full max-w-[1280px] px-4 py-6 sm:py-10 lg:flex lg:gap-6">
+      <div className="relative mx-auto w-full max-w-none px-3 py-5 sm:px-4 sm:py-7 lg:px-4 lg:gap-4 lg:flex 2xl:px-5">
         {/* Desktop sidebar */}
         <aside className="no-print hidden lg:block lg:w-72 lg:shrink-0">
           <div className="sticky top-6 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200">
