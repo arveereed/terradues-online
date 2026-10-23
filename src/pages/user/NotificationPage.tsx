@@ -589,8 +589,36 @@ export default function NotificationPage({}: Props) {
 
                   <div className="mt-5">
                     <h3 className="text-sm font-black text-zinc-900">
-                      Your Payment Details
+                      Payment Breakdown
                     </h3>
+
+                    <div className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 sm:p-5">
+                      <p className="text-sm font-extrabold text-zinc-900">
+                        Where your monthly dues go
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-zinc-600">
+                        Your monthly dues help support these community services.
+                      </p>
+                      <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+                        {[
+                          "Guards",
+                          "Garbage",
+                          "Street Light and Labor",
+                          "Maintenance of Grass and Facilities",
+                        ].map((service) => (
+                          <li
+                            key={service}
+                            className="flex items-start gap-2 rounded-xl border border-emerald-100 bg-white px-3 py-3 text-sm font-semibold text-zinc-700"
+                          >
+                            <CheckCircle2
+                              size={17}
+                              className="mt-0.5 shrink-0 text-emerald-700"
+                            />
+                            <span>{service}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
 
                     <div className="mt-3 overflow-hidden rounded-2xl border border-zinc-200">
                       <div className="flex justify-between gap-4 border-b border-zinc-100 px-4 py-3 text-sm">
