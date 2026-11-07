@@ -414,7 +414,8 @@ export default function AdminSummaryReportPage() {
   } = useQuery({
     queryKey: SUMMARY_REPORT_QUERY_KEY,
     queryFn: getSummaryReportSourceData,
-    staleTime: 60_000,
+    staleTime: 5 * 60_000,
+    refetchOnMount: false,
     refetchOnWindowFocus: false,
   });
 

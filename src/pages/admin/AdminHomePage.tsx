@@ -197,7 +197,7 @@ export default function AdminHomePage() {
     queryKey: ["admin-dashboard-users"],
     queryFn: getApprovedResidentsWithCurrentMonthPayments,
     staleTime: 1000 * 60 * 5,
-    refetchOnMount: "always",
+    refetchOnMount: false,
   });
 
   const residents = useMemo(() => users.filter(isResidentUser), [users]);

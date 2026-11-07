@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { printAdminTable } from "../../lib/printAdminTable";
 import {
   useEffect,
@@ -199,8 +200,18 @@ const getPageNumbers = (currentPage: number, totalPages: number) => {
 };
 
 export default function AdminListOfResidentsPage() {
+  const queryClient = useQueryClient();
+  const cacheKey = ["admin", "residents"];
+
   const navigate = useNavigate();
-  const [residents, setResidents] = useState<Resident[]>([]);
+  const [residents, setResidents] = useState<Resident[]>(
+    (queryClient.getQueryData<User[]>(cacheKey) ?? [])
+      .filter(isResidentUser)
+      .filter(
+        (user) => !user.approvalStatus || user.approvalStatus === "approved",
+      )
+      .map(toResident),
+  );
   const [selectedResident, setSelectedResident] = useState<Resident | null>(
     null,
   );
@@ -209,7 +220,7 @@ export default function AdminListOfResidentsPage() {
     null,
   );
   const [isArchiving, setIsArchiving] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!queryClient.getQueryData(cacheKey));
   const [dbError, setDbError] = useState<string | null>(null);
 
   const [query, setQuery] = useState("");
@@ -223,23 +234,24 @@ export default function AdminListOfResidentsPage() {
     setDbError(null);
 
     try {
-      const users = await getAllUsers();
+      const users = await queryClient.fetchQuery({
+        queryKey: cacheKey,
+        queryFn: getAllUsers,
+      });
 
-      setResidents(
-        users
-          .filter(isResidentUser)
-          /*
-           * Backward compatibility:
-           *
-           * Existing users without approvalStatus are treated as approved.
-           * New pending and denied registrations are excluded.
-           */
-          .filter(
-            (user) =>
-              !user.approvalStatus || user.approvalStatus === "approved",
-          )
-          .map(toResident),
-      );
+      const mappedResidents = users
+        .filter(isResidentUser)
+        /*
+         * Backward compatibility:
+         *
+         * Existing users without approvalStatus are treated as approved.
+         * New pending and denied registrations are excluded.
+         */
+        .filter(
+          (user) => !user.approvalStatus || user.approvalStatus === "approved",
+        )
+        .map(toResident);
+      setResidents(mappedResidents);
     } catch (error) {
       console.error("getAllUsers failed:", error);
 
@@ -399,6 +411,10 @@ export default function AdminListOfResidentsPage() {
       setResidents((current) =>
         current.filter((item) => item.id !== residentId),
       );
+      void queryClient.invalidateQueries({ queryKey: cacheKey });
+      void queryClient.invalidateQueries({
+        queryKey: ["admin-dashboard-users"],
+      });
       if (selectedResident?.id === residentId) setSelectedResident(null);
       setResidentToArchive(null);
     } catch (error) {
@@ -416,6 +432,8 @@ export default function AdminListOfResidentsPage() {
     payload: AdminUpdateResidentPayload,
   ) => {
     await updateResidentByAdmin(residentId, payload);
+    void queryClient.invalidateQueries({ queryKey: cacheKey });
+    void queryClient.invalidateQueries({ queryKey: ["admin-dashboard-users"] });
 
     setResidents((current) =>
       current.map((resident) =>
@@ -464,7 +482,10 @@ export default function AdminListOfResidentsPage() {
           </button>
           <button
             type="button"
-            onClick={() => void loadResidents()}
+            onClick={() => {
+              void queryClient.invalidateQueries({ queryKey: cacheKey });
+              void loadResidents();
+            }}
             disabled={loading}
             className="inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:px-5"
           >

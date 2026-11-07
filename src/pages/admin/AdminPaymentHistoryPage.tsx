@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { printAdminTable } from "../../lib/printAdminTable";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -383,11 +384,24 @@ const toResidentPaymentRow = (user: ResidentUser): ResidentPaymentRow => {
 };
 
 export default function AdminPaymentHistoryPage() {
-  const [rows, setRows] = useState<ResidentPaymentRow[]>([]);
+  const queryClient = useQueryClient();
+  const cacheKey = ["admin", "payment-history", getCurrentMonthKey()];
+
+  const [rows, setRows] = useState<ResidentPaymentRow[]>(
+    (queryClient.getQueryData<User[]>(cacheKey) ?? [])
+      .filter(isResidentUser)
+      .map(toResidentPaymentRow)
+      .sort(
+        (a, b) =>
+          compareNatural(a.phase, b.phase) ||
+          compareNatural(a.block, b.block) ||
+          a.lotNo - b.lotNo,
+      ),
+  );
   const [selectedResident, setSelectedResident] =
     useState<ResidentPaymentRow | null>(null);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!queryClient.getQueryData(cacheKey));
   const [dbError, setDbError] = useState<string | null>(null);
 
   const [query, setQuery] = useState("");
@@ -404,7 +418,10 @@ export default function AdminPaymentHistoryPage() {
     setDbError(null);
 
     try {
-      const users = await getApprovedResidentsWithCurrentMonthPayments();
+      const users = await queryClient.fetchQuery({
+        queryKey: cacheKey,
+        queryFn: getApprovedResidentsWithCurrentMonthPayments,
+      });
 
       const residentRows = users
         .filter(isResidentUser)
@@ -552,7 +569,10 @@ export default function AdminPaymentHistoryPage() {
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:justify-end">
           <button
             type="button"
-            onClick={() => void loadResidents()}
+            onClick={() => {
+              void queryClient.invalidateQueries({ queryKey: cacheKey });
+              void loadResidents();
+            }}
             disabled={loading}
             className="inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:px-5"
           >

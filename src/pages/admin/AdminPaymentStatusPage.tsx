@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { printAdminTable } from "../../lib/printAdminTable";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
@@ -395,8 +396,21 @@ const toPaymentRow = (user: ResidentUser): PaymentRow => {
 };
 
 export default function AdminPaymentStatusPage() {
-  const [rows, setRows] = useState<PaymentRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const cacheKey = ["admin", "payment-status", getCurrentMonthKey()];
+
+  const [rows, setRows] = useState<PaymentRow[]>(
+    (queryClient.getQueryData<User[]>(cacheKey) ?? [])
+      .filter(isResidentUser)
+      .map(toPaymentRow)
+      .sort(
+        (a, b) =>
+          compareNatural(a.phase, b.phase) ||
+          compareNatural(a.block, b.block) ||
+          a.lotNo - b.lotNo,
+      ),
+  );
+  const [loading, setLoading] = useState(!queryClient.getQueryData(cacheKey));
   const [dbError, setDbError] = useState<string | null>(null);
 
   const [query, setQuery] = useState("");
@@ -421,7 +435,10 @@ export default function AdminPaymentStatusPage() {
     setDbError(null);
 
     try {
-      const users = await getApprovedResidentsWithCurrentMonthPayments();
+      const users = await queryClient.fetchQuery({
+        queryKey: cacheKey,
+        queryFn: getApprovedResidentsWithCurrentMonthPayments,
+      });
 
       const residentRows = users
         .filter(isResidentUser)
@@ -477,6 +494,10 @@ export default function AdminPaymentStatusPage() {
           });
 
         setRows(residentRows);
+        queryClient.setQueryData(
+          cacheKey,
+          snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+        );
       },
       (error) => {
         console.error("Payment status realtime listener failed:", error);
@@ -691,7 +712,10 @@ export default function AdminPaymentStatusPage() {
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-3">
           <button
             type="button"
-            onClick={() => void loadResidents()}
+            onClick={() => {
+              void queryClient.invalidateQueries({ queryKey: cacheKey });
+              void loadResidents();
+            }}
             disabled={loading}
             className="inline-flex h-11 min-w-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 sm:px-5"
           >

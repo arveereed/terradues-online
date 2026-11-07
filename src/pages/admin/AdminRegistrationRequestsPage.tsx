@@ -156,11 +156,14 @@ function RegistrationDocument({
 
 export default function AdminRegistrationRequestsPage() {
   const queryClient = useQueryClient();
+  const cacheKey = ["admin", "registration-requests"];
   const { user: admin } = useUser();
 
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<User[]>(
+    queryClient.getQueryData<User[]>(cacheKey) ?? [],
+  );
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!queryClient.getQueryData(cacheKey));
 
   const [error, setError] = useState("");
 
@@ -188,7 +191,10 @@ export default function AdminRegistrationRequestsPage() {
     setError("");
 
     try {
-      const requests = await getRegistrationRequests();
+      const requests = await queryClient.fetchQuery({
+        queryKey: cacheKey,
+        queryFn: getRegistrationRequests,
+      });
 
       setUsers(requests);
     } catch (error) {
@@ -280,11 +286,20 @@ export default function AdminRegistrationRequestsPage() {
         queryClient.invalidateQueries({
           queryKey: ["admin", "summary-report"],
         }),
+        queryClient.invalidateQueries({ queryKey: ["admin", "residents"] }),
+        queryClient.invalidateQueries({
+          queryKey: ["admin", "payment-history"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["admin", "payment-status"],
+        }),
       ]);
 
-      setUsers((current) =>
-        current.filter((user) => user.id !== confirm.user.id),
-      );
+      setUsers((current) => {
+        const next = current.filter((user) => user.id !== confirm.user.id);
+        queryClient.setQueryData(cacheKey, next);
+        return next;
+      });
 
       setSuccess(
         `${confirm.user.fullName || "Resident"} was ${confirm.decision}.`,
@@ -323,7 +338,10 @@ export default function AdminRegistrationRequestsPage() {
 
         <button
           type="button"
-          onClick={() => void load()}
+          onClick={() => {
+            void queryClient.invalidateQueries({ queryKey: cacheKey });
+            void load();
+          }}
           disabled={loading}
           className="inline-flex items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
