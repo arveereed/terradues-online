@@ -169,6 +169,26 @@ export default function RegistrationDeniedPage() {
 
   const [form, setForm] = useState<RegistrationForm>(initialForm);
 
+  const [clockNow, setClockNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(Date.now()), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const denialTimestamp = resident?.deniedAt as unknown as
+    | { toMillis?: () => number; seconds?: number }
+    | null
+    | undefined;
+  const denialTime =
+    denialTimestamp?.toMillis?.() ??
+    (typeof denialTimestamp?.seconds === "number"
+      ? denialTimestamp.seconds * 1000
+      : NaN);
+  const expiryTime = denialTime + 7 * 24 * 60 * 60 * 1000;
+  const canResubmit = Number.isFinite(expiryTime) && clockNow < expiryTime;
+  const daysRemaining = canResubmit
+    ? Math.ceil((expiryTime - clockNow) / 86400000)
+    : 0;
+
   const [editing, setEditing] = useState(false);
 
   const [success, setSuccess] = useState("");
@@ -249,6 +269,9 @@ export default function RegistrationDeniedPage() {
       if (!resident) {
         throw new Error("Resident registration was not found.");
       }
+
+      if (!canResubmit)
+        throw new Error("The 7-day correction period has expired.");
 
       const currentResident = resident;
 
@@ -581,8 +604,9 @@ export default function RegistrationDeniedPage() {
             </h1>
 
             <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-zinc-600">
-              Review the administrator’s reason below, correct your submitted
-              information, and resubmit your registration for another review.
+              You have 7 days from the denial date to correct and resubmit your
+              registration. Registrations still denied after that deadline are
+              scheduled for permanent deletion.
             </p>
           </div>
 
@@ -607,6 +631,32 @@ export default function RegistrationDeniedPage() {
               </div>
             </div>
 
+            <div
+              className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
+              role="status"
+            >
+              {canResubmit ? (
+                <p>
+                  <strong>
+                    {daysRemaining} day{daysRemaining === 1 ? "" : "s"}{" "}
+                    remaining.
+                  </strong>{" "}
+                  Submit your corrections before{" "}
+                  {new Date(expiryTime).toLocaleString("en-PH", {
+                    dateStyle: "long",
+                    timeStyle: "short",
+                  })}
+                  .
+                </p>
+              ) : (
+                <p>
+                  <strong>Correction period expired.</strong> Editing and
+                  resubmission are no longer available. Your denied account is
+                  scheduled for deletion.
+                </p>
+              )}
+            </div>
+
             {success && (
               <div className="mt-5 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
                 <CheckCircle2 className="mt-0.5 shrink-0" size={20} />
@@ -615,7 +665,7 @@ export default function RegistrationDeniedPage() {
               </div>
             )}
 
-            {!editing && !success && (
+            {!editing && !success && canResubmit && (
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <button
                   type="button"
@@ -1211,7 +1261,7 @@ export default function RegistrationDeniedPage() {
 
               <button
                 type="button"
-                disabled={mutation.isPending}
+                disabled={mutation.isPending || !canResubmit}
                 onClick={() => mutation.mutate()}
                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
               >

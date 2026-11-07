@@ -242,6 +242,7 @@ export const updateResidentApproval = async ({
       approvedBy: decidedBy,
 
       deniedAt: null,
+      denialExpiresAt: null,
       deniedBy: null,
       denialReason: null,
     });
@@ -250,6 +251,9 @@ export const updateResidentApproval = async ({
       ...common,
 
       deniedAt: timestamp,
+      denialExpiresAt: Timestamp.fromMillis(
+        timestamp.toMillis() + 7 * 24 * 60 * 60 * 1000,
+      ),
       deniedBy: decidedBy,
 
       denialReason: denialReason?.trim() || null,
@@ -1394,6 +1398,24 @@ export const resubmitDeniedRegistration = async (
     throw new Error("Only denied registrations can be edited and resubmitted.");
   }
 
+  // Restrict corrections to the seven days following the admin's denial.
+  const deniedAt = userData.deniedAt as unknown as {
+    toMillis?: () => number;
+    seconds?: number;
+  } | null | undefined;
+  const deniedMs =
+    deniedAt?.toMillis?.() ??
+    (typeof deniedAt?.seconds === "number" ? deniedAt.seconds * 1000 : NaN);
+
+  if (
+    !Number.isFinite(deniedMs) ||
+    Date.now() >= deniedMs + 7 * 24 * 60 * 60 * 1000
+  ) {
+    throw new Error(
+      "The 7-day correction period has expired. This registration can no longer be resubmitted.",
+    );
+  }
+
   const firstName = payload.firstName.trim();
   const middleName = payload.middleName.trim();
   const lastName = payload.lastName.trim();
@@ -1463,6 +1485,7 @@ export const resubmitDeniedRegistration = async (
     updatedAt: serverTimestamp(),
 
     deniedAt: null,
+    denialExpiresAt: null,
     deniedBy: null,
     denialReason: null,
 

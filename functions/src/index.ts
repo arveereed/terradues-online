@@ -1,32 +1,82 @@
-/**
- * Import function triggers from their respective submodules:
- *
- * import {onCall} from "firebase-functions/v2/https";
- * import {onDocumentWritten} from "firebase-functions/v2/firestore";
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
- */
-
-import {setGlobalOptions} from "firebase-functions";
-import {onRequest} from "firebase-functions/https";
+import { onSchedule } from "firebase-functions/v2/scheduler";
+import { defineSecret } from "firebase-functions/params";
+import { initializeApp } from "firebase-admin/app";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { createClerkClient } from "@clerk/backend";
 import * as logger from "firebase-functions/logger";
 
-// Start writing functions
-// https://firebase.google.com/docs/functions/typescript
+initializeApp();
+const clerkSecret = defineSecret("CLERK_SECRET_KEY");
+const PERIOD_MS = 7 * 24 * 60 * 60 * 1000;
 
-// For cost control, you can set the maximum number of containers that can be
-// running at the same time. This helps mitigate the impact of unexpected
-// traffic spikes by instead downgrading performance. This limit is a
-// per-function limit. You can override the limit for each function using the
-// `maxInstances` option in the function's options, e.g.
-// `onRequest({ maxInstances: 5 }, (req, res) => { ... })`.
-// NOTE: setGlobalOptions does not apply to functions using the v1 API. V1
-// functions should each use functions.runWith({ maxInstances: 10 }) instead.
-// In the v1 API, each function can only serve one request per container, so
-// this will be the maximum concurrent request count.
-setGlobalOptions({ maxInstances: 10 });
+/** Deletes denied registrations after the 7-day correction window. */
+export const cleanupExpiredDeniedRegistrations = onSchedule(
+  {
+    schedule: "every 1 hours",
+    timeZone: "Asia/Manila",
+    region: "asia-southeast1",
+    secrets: [clerkSecret],
+    timeoutSeconds: 540,
+  },
+  async () => {
+    const db = getFirestore();
+    const clerk = createClerkClient({ secretKey: clerkSecret.value() });
+    const denied = await db
+      .collection("users")
+      .where("approvalStatus", "==", "denied")
+      .get();
 
-// export const helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
+    for (const item of denied.docs) {
+      try {
+        const data = item.data();
+        if (
+          data.role !== "resident" ||
+          !["Owner", "Renter"].includes(data.userType)
+        )
+          continue;
+        const deniedAt = data.deniedAt;
+        if (
+          !(deniedAt instanceof Timestamp) ||
+          Date.now() < deniedAt.toMillis() + PERIOD_MS
+        )
+          continue;
+
+        // Re-read before deletion to avoid acting on a stale query result.
+        const latest = await item.ref.get();
+        const current = latest.data();
+        if (
+          !current ||
+          current.approvalStatus !== "denied" ||
+          !(current.deniedAt instanceof Timestamp) ||
+          Date.now() < current.deniedAt.toMillis() + PERIOD_MS
+        )
+          continue;
+
+        const clerkId = current.user_id;
+        if (typeof clerkId !== "string" || !clerkId || clerkId !== item.id) {
+          logger.error("Invalid Clerk user ID; skipped", { id: item.id });
+          continue;
+        }
+        try {
+          await clerk.users.deleteUser(clerkId);
+        } catch (err: unknown) {
+          // A missing Clerk user is safe to treat as already deleted.
+          const status = (err as { status?: number })?.status;
+          if (status !== 404) throw err;
+        }
+        // Only remove the Firestore record if it is still denied.
+        // Clerk deletion revokes the resident's ability to resubmit.
+        const finalSnap = await item.ref.get();
+        if (finalSnap.data()?.approvalStatus === "denied") {
+          await item.ref.delete();
+          logger.info("Expired denied registration removed", { id: item.id });
+        }
+      } catch (err) {
+        logger.error("Failed to clean up denied registration", {
+          id: item.id,
+          err,
+        });
+      }
+    }
+  },
+);

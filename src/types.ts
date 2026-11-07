@@ -72,6 +72,7 @@ type ApprovalMetadata = {
   approvedBy?: string;
 
   deniedAt?: FirestoreTimestamp;
+  denialExpiresAt?: FirestoreTimestamp | null;
   deniedBy?: string;
   denialReason?: string;
 };
