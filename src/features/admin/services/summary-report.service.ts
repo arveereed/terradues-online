@@ -244,6 +244,41 @@ const getResidentName = (user: ResidentUser) => {
     .join(" ");
 };
 
+/** Registration is based on the resident document, not the report's selected month. */
+const getRegistrationMonthKey = (user: ResidentUser): string | null => {
+  const raw = user as unknown as UnknownRecord;
+  // createdAt is written when the resident registers; approvedAt is only a
+  // fallback for older records without a registration timestamp.
+  for (const value of [raw.createdAt, raw.registeredAt, raw.approvedAt]) {
+    let date: Date | null = null;
+    if (value instanceof Date) date = value;
+    else if (typeof value === "string" || typeof value === "number") {
+      date = new Date(value);
+    } else if (value && typeof value === "object") {
+      const stamp = value as UnknownRecord;
+      if (typeof stamp.toDate === "function") {
+        date = (stamp.toDate as () => Date)();
+      } else if (typeof stamp.seconds === "number") {
+        date = new Date(stamp.seconds * 1000);
+      } else if (typeof stamp._seconds === "number") {
+        date = new Date(stamp._seconds * 1000);
+      }
+    }
+    if (date && !Number.isNaN(date.getTime())) {
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Manila",
+        year: "numeric",
+        month: "2-digit",
+      }).formatToParts(date);
+      const year = parts.find((part) => part.type === "year")?.value;
+      const month = parts.find((part) => part.type === "month")?.value;
+      if (year && month) return `${year}-${month}`;
+    }
+  }
+  // Never invent a historical registration date for legacy records.
+  return null;
+};
+
 const toSummaryReportResident = (user: ResidentUser): SummaryReportResident => {
   const monthlyCharge = getResidentMonthlyCharge(user);
 
@@ -265,6 +300,7 @@ const toSummaryReportResident = (user: ResidentUser): SummaryReportResident => {
     address: cleanString(user.address),
     userType: user.userType,
     monthlyCharge,
+    registrationMonthKey: getRegistrationMonthKey(user),
     paymentHistory: normalizePaymentHistory(rawHistory, monthlyCharge),
   };
 };
@@ -317,9 +353,16 @@ const calculateTotalsForMonth = (
 ): SummaryReportTotals => {
   const totals = createEmptyTotals();
 
-  totals.totalResidents = residents.length;
-
   for (const resident of residents) {
+    // A resident must not appear in a month before their registration.
+    // Unknown registration dates are excluded rather than backdated.
+    if (
+      !resident.registrationMonthKey ||
+      resident.registrationMonthKey > monthKey
+    ) {
+      continue;
+    }
+    totals.totalResidents += 1;
     const record = getRecordForMonth(resident, monthKey);
 
     /*
@@ -506,6 +549,13 @@ const getAvailableYears = (
   const years = new Set<number>([currentYear]);
 
   for (const resident of residents) {
+    if (resident.registrationMonthKey) {
+      const registrationYear = Number(
+        resident.registrationMonthKey.slice(0, 4),
+      );
+      if (registrationYear >= 2000 && registrationYear <= 2100)
+        years.add(registrationYear);
+    }
     for (const record of resident.paymentHistory) {
       const year = Number(record.monthKey.slice(0, 4));
 

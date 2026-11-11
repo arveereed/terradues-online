@@ -31,6 +31,7 @@ export type SummaryReportResident = {
   address: string;
   userType: "Owner" | "Renter";
   monthlyCharge: number;
+  registrationMonthKey: string | null;
   paymentHistory: SummaryReportPaymentRecord[];
 };
 
