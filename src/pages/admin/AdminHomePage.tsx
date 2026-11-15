@@ -475,33 +475,53 @@ export default function AdminHomePage() {
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {stats.map((s) => {
           const Icon = s.icon;
+          const cardContent = (
+            <div className="flex items-center gap-3">
+              <div className="grid size-11 place-items-center rounded-2xl bg-emerald-50 text-emerald-700">
+                <Icon size={20} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-zinc-500">{s.label}</p>
+                <p className="mt-1 truncate text-2xl font-extrabold tracking-tight text-zinc-900">
+                  {s.value}
+                </p>
+                {s.hint ? (
+                  <p className="mt-1 text-xs font-semibold text-zinc-400">
+                    {s.hint}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          );
+
+          const destinations: Record<string, string> = {
+            "Total Residents": "/admin/users",
+            "Paid Residents": "/admin/payments?status=Paid",
+            "Unpaid Residents": "/admin/payments?status=Not%20Paid",
+            "Monthly Collection": "/admin/summary-report?metric=collection",
+            "Remaining Balance": "/admin/summary-report?metric=balance",
+            "Total Amount Due": "/admin/summary-report?metric=due",
+          };
+          const destination = destinations[s.label];
+          if (destination) {
+            return (
+              <Link
+                key={s.label}
+                to={destination}
+                aria-label={`View ${s.label.toLowerCase()} details`}
+                className="block cursor-pointer rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:ring-emerald-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+              >
+                {cardContent}
+              </Link>
+            );
+          }
 
           return (
             <div
               key={s.label}
-              className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200"
+              className="block rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200"
             >
-              <div className="flex items-center gap-3">
-                <div className="grid size-11 place-items-center rounded-2xl bg-emerald-50 text-emerald-700">
-                  <Icon size={20} />
-                </div>
-
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-zinc-500">
-                    {s.label}
-                  </p>
-
-                  <p className="mt-1 truncate text-2xl font-extrabold tracking-tight text-zinc-900">
-                    {s.value}
-                  </p>
-
-                  {s.hint ? (
-                    <p className="mt-1 text-xs font-semibold text-zinc-400">
-                      {s.hint}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
+              {cardContent}
             </div>
           );
         })}

@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -45,6 +46,21 @@ type FeedbackState = {
 } | null;
 
 type ExportType = "pdf" | "excel" | null;
+type DetailMetric =
+  | "residents"
+  | "paid"
+  | "unpaid"
+  | "collection"
+  | "expected"
+  | "balance";
+const detailMetricForLabel: Record<string, DetailMetric> = {
+  "Total Residents": "residents",
+  "Paid Residents": "paid",
+  "Unpaid Residents": "unpaid",
+  "Total Collected": "collection",
+  "Expected Collection": "expected",
+  "Remaining Balance": "balance",
+};
 
 type SummaryCardConfig = {
   label: string;
@@ -338,11 +354,25 @@ const FilterSelect = ({
   );
 };
 
-const SummaryCard = ({ card }: { card: SummaryCardConfig }) => {
+const SummaryCard = ({
+  card,
+  onClick,
+  selected,
+}: {
+  card: SummaryCardConfig;
+  onClick: () => void;
+  selected: boolean;
+}) => {
   const Icon = card.icon;
 
   return (
-    <article className="group flex min-h-28 items-center gap-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      aria-label={`View ${card.label} breakdown`}
+      className={`group flex min-h-28 w-full items-center gap-4 rounded-2xl border bg-white p-4 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 ${selected ? "border-emerald-500 ring-2 ring-emerald-200" : "border-zinc-200"}`}
+    >
       <div
         className={`grid size-12 shrink-0 place-items-center rounded-2xl ring-1 transition-transform duration-200 group-hover:scale-105 ${card.iconContainerClassName}`}
       >
@@ -360,7 +390,7 @@ const SummaryCard = ({ card }: { card: SummaryCardConfig }) => {
           {card.value}
         </p>
       </div>
-    </article>
+    </button>
   );
 };
 
@@ -388,7 +418,16 @@ const EmptyUnpaidResidentsState = ({
 };
 
 export default function AdminSummaryReportPage() {
+  const [searchParams] = useSearchParams();
+  const metric = searchParams.get("metric");
+  const focusedMetric =
+    metric === "collection" || metric === "balance" || metric === "due"
+      ? metric
+      : null;
   const printReportRef = useRef<HTMLDivElement>(null);
+  const [selectedDetail, setSelectedDetail] = useState<DetailMetric | null>(
+    null,
+  );
 
   const [filterMonth, setFilterMonth] = useState<number | null>(null);
 
@@ -485,6 +524,135 @@ export default function AdminSummaryReportPage() {
   const totalAmountDue = useMemo(
     () => (report ? getSummaryReportTotalAmountDue(report) : 0),
     [report],
+  );
+
+  const financialBreakdown = useMemo(() => {
+    if (!sourceData || !report) return [];
+    return sourceData.residents
+      .filter(
+        (resident) =>
+          resident.registrationMonthKey &&
+          resident.registrationMonthKey <= report.monthKey,
+      )
+      .flatMap((resident) => {
+        const record = resident.paymentHistory.find(
+          (payment) => payment.monthKey === report.monthKey,
+        );
+        if (!record) return [];
+        return [
+          {
+            id: resident.id,
+            name:
+              resident.fullName ||
+              [resident.firstName, resident.lastName]
+                .filter(Boolean)
+                .join(" ") ||
+              "Resident",
+            location:
+              [
+                resident.block && `Block ${resident.block}`,
+                resident.lot && `Lot ${resident.lot}`,
+              ]
+                .filter(Boolean)
+                .join(" · ") ||
+              resident.address ||
+              "—",
+            currentCharges: record.currentCharges,
+            beginningBalance: record.beginningBalance,
+            additionalCharges: record.additionalCharges,
+            totalDue: record.totalDue,
+            collection: record.collection,
+            remainingBalance: record.remainingBalance,
+            status: record.status,
+            datePaid: record.datePaid,
+          },
+        ];
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [sourceData, report]);
+
+  const detailRows = useMemo(() => {
+    if (!sourceData || !report) return [];
+    return sourceData.residents
+      .filter(
+        (resident) =>
+          !!resident.registrationMonthKey &&
+          resident.registrationMonthKey <= report.monthKey,
+      )
+      .map((resident) => {
+        const record = [...resident.paymentHistory]
+          .reverse()
+          .find((payment) => payment.monthKey === report.monthKey);
+        return {
+          id: resident.id,
+          name:
+            resident.fullName ||
+            [resident.firstName, resident.lastName].filter(Boolean).join(" ") ||
+            "Resident",
+          location:
+            [
+              resident.block && `Block ${resident.block}`,
+              resident.lot && `Lot ${resident.lot}`,
+            ]
+              .filter(Boolean)
+              .join(" · ") ||
+            resident.address ||
+            "—",
+          registrationMonth: resident.registrationMonthKey,
+          status: record?.status ?? "No record",
+          paid:
+            !!record &&
+            (record.status === "Paid" ||
+              (record.collection > 0 && record.remainingBalance <= 0)),
+          unpaid:
+            !!record &&
+            (record.status === "Not Paid" || record.remainingBalance > 0),
+          totalDue: record?.totalDue ?? 0,
+          collected: record?.collection ?? 0,
+          balance: record?.remainingBalance ?? 0,
+          hasRecord: !!record,
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [sourceData, report]);
+  const displayedDetailRows = detailRows.filter((row) =>
+    selectedDetail === "paid"
+      ? row.paid
+      : selectedDetail === "unpaid"
+        ? row.unpaid
+        : selectedDetail === "collection"
+          ? row.collected !== 0
+          : selectedDetail === "expected"
+            ? row.totalDue !== 0
+            : selectedDetail === "balance"
+              ? row.balance !== 0
+              : true,
+  );
+  const detailValue =
+    selectedDetail === "residents"
+      ? report?.totals.totalResidents
+      : selectedDetail === "paid"
+        ? report?.totals.paidResidents
+        : selectedDetail === "unpaid"
+          ? report?.totals.unpaidResidents
+          : selectedDetail === "collection"
+            ? report?.totals.totalCollected
+            : selectedDetail === "expected"
+              ? report?.totals.expectedCollection
+              : report?.totals.remainingBalance;
+  const detailLabel = summaryCards.find(
+    (card) => detailMetricForLabel[card.label] === selectedDetail,
+  )?.label;
+
+  const breakdownTotal = financialBreakdown.reduce(
+    (sum, row) =>
+      sum +
+      (focusedMetric === "collection"
+        ? row.collection
+        : focusedMetric === "balance"
+          ? row.remainingBalance
+          : row.totalDue),
+    0,
   );
 
   const hasUnappliedFilters =
@@ -988,9 +1156,271 @@ export default function AdminSummaryReportPage() {
               aria-label="Summary values"
               className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6"
             >
+              {focusedMetric && (
+                <div
+                  className="col-span-full overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm"
+                  role="region"
+                  aria-label="Selected dashboard metric breakdown"
+                >
+                  <div className="border-b border-zinc-200 p-5 sm:p-6">
+                    <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">
+                      Dashboard financial breakdown · {report.reportPeriod}
+                    </p>
+                    <h2 className="mt-1 text-xl font-extrabold text-zinc-900">
+                      {focusedMetric === "collection"
+                        ? "Monthly Collection"
+                        : focusedMetric === "balance"
+                          ? "Remaining Balance"
+                          : "Total Amount Due"}
+                    </h2>
+                    <p className="mt-2 text-3xl font-extrabold text-emerald-700">
+                      {formatSummaryReportCurrency(breakdownTotal)}
+                    </p>
+                    <p className="mt-2 text-sm text-zinc-600">
+                      {focusedMetric === "collection"
+                        ? "Sum of payments recorded for this billing month. Each resident's contribution appears below."
+                        : focusedMetric === "balance"
+                          ? "Sum of each resident's remaining unpaid balance for this billing month."
+                          : "Sum of each resident's total due (current charges, beginning balance, and any additional charges)."}
+                    </p>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      Only registered residents with a payment record for the
+                      selected month are included. Changing the report month
+                      updates this breakdown.
+                    </p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[800px] text-left text-sm">
+                      <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-600">
+                        <tr>
+                          <th className="px-4 py-3">Resident</th>
+                          <th className="px-4 py-3">Block / Lot</th>
+                          {focusedMetric === "due" ? (
+                            <>
+                              <th className="px-4 py-3 text-right">
+                                Current charges
+                              </th>
+                              <th className="px-4 py-3 text-right">
+                                Beginning balance
+                              </th>
+                              <th className="px-4 py-3 text-right">
+                                Additional charges
+                              </th>
+                            </>
+                          ) : (
+                            <>
+                              <th className="px-4 py-3 text-right">
+                                Total due
+                              </th>
+                              <th className="px-4 py-3 text-right">
+                                Collected
+                              </th>
+                            </>
+                          )}
+                          <th className="px-4 py-3 text-right">
+                            {focusedMetric === "collection"
+                              ? "Contribution"
+                              : focusedMetric === "balance"
+                                ? "Unpaid balance"
+                                : "Amount due"}
+                          </th>
+                          <th className="px-4 py-3">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-100">
+                        {financialBreakdown.map((row) => (
+                          <tr key={row.id} className="hover:bg-zinc-50">
+                            <td className="px-4 py-3 font-semibold text-zinc-900">
+                              {row.name}
+                            </td>
+                            <td className="px-4 py-3 text-zinc-600">
+                              {row.location}
+                            </td>
+                            {focusedMetric === "due" ? (
+                              <>
+                                <td className="px-4 py-3 text-right">
+                                  {formatSummaryReportCurrency(
+                                    row.currentCharges,
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  {formatSummaryReportCurrency(
+                                    row.beginningBalance,
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  {formatSummaryReportCurrency(
+                                    row.additionalCharges,
+                                  )}
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="px-4 py-3 text-right">
+                                  {formatSummaryReportCurrency(row.totalDue)}
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  {formatSummaryReportCurrency(row.collection)}
+                                </td>
+                              </>
+                            )}
+                            <td className="px-4 py-3 text-right font-extrabold text-emerald-700">
+                              {formatSummaryReportCurrency(
+                                focusedMetric === "collection"
+                                  ? row.collection
+                                  : focusedMetric === "balance"
+                                    ? row.remainingBalance
+                                    : row.totalDue,
+                              )}
+                            </td>
+                            <td className="px-4 py-3">{row.status}</td>
+                          </tr>
+                        ))}
+                        {financialBreakdown.length === 0 && (
+                          <tr>
+                            <td
+                              colSpan={7}
+                              className="px-4 py-8 text-center text-zinc-500"
+                            >
+                              No billing records found for this month.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                      <tfoot className="border-t-2 border-emerald-200 bg-emerald-50 font-extrabold text-emerald-900">
+                        <tr>
+                          <td
+                            colSpan={focusedMetric === "due" ? 5 : 4}
+                            className="px-4 py-4"
+                          >
+                            Total · {financialBreakdown.length} resident records
+                          </td>
+                          <td className="px-4 py-4 text-right">
+                            {formatSummaryReportCurrency(breakdownTotal)}
+                          </td>
+                          <td />
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )}
               {summaryCards.map((card) => (
-                <SummaryCard key={card.label} card={card} />
+                <SummaryCard
+                  key={card.label}
+                  card={card}
+                  selected={selectedDetail === detailMetricForLabel[card.label]}
+                  onClick={() =>
+                    setSelectedDetail((previous) =>
+                      previous === detailMetricForLabel[card.label]
+                        ? null
+                        : detailMetricForLabel[card.label],
+                    )
+                  }
+                />
               ))}
+              {selectedDetail && (
+                <div
+                  className="col-span-full overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm"
+                  role="region"
+                  aria-label={`${detailLabel} details`}
+                >
+                  <div className="flex items-start justify-between gap-4 border-b border-zinc-200 p-5">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">
+                        Generated report · {report.reportPeriod}
+                      </p>
+                      <h3 className="mt-1 text-lg font-extrabold text-zinc-900">
+                        {detailLabel} — Resident Breakdown
+                      </h3>
+                      <p className="mt-1 text-sm text-zinc-600">
+                        {selectedDetail === "residents"
+                          ? "All residents registered by the selected month, including those without billing records."
+                          : selectedDetail === "paid"
+                            ? "Residents with paid records in the selected month."
+                            : selectedDetail === "unpaid"
+                              ? "Residents with unpaid records or outstanding balances in the selected month."
+                              : "Resident-level amounts recorded for the selected billing month. Missing payment records do not generate artificial charges."}
+                      </p>
+                      <p className="mt-2 text-2xl font-extrabold text-emerald-700">
+                        {selectedDetail === "residents" ||
+                        selectedDetail === "paid" ||
+                        selectedDetail === "unpaid"
+                          ? formatNumber(detailValue ?? 0)
+                          : formatSummaryReportCurrency(detailValue ?? 0)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDetail(null)}
+                      aria-label="Close breakdown"
+                      className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[700px] text-left text-sm">
+                      <thead className="bg-zinc-50 text-xs uppercase text-zinc-600">
+                        <tr>
+                          <th className="px-4 py-3">Resident</th>
+                          <th className="px-4 py-3">Block / Lot</th>
+                          <th className="px-4 py-3">Registered</th>
+                          <th className="px-4 py-3">Payment status</th>
+                          <th className="px-4 py-3 text-right">Total due</th>
+                          <th className="px-4 py-3 text-right">Collected</th>
+                          <th className="px-4 py-3 text-right">Remaining</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-100">
+                        {displayedDetailRows.map((row) => (
+                          <tr key={row.id} className="hover:bg-zinc-50">
+                            <td className="px-4 py-3 font-semibold text-zinc-900">
+                              {row.name}
+                            </td>
+                            <td className="px-4 py-3">{row.location}</td>
+                            <td className="px-4 py-3">
+                              {row.registrationMonth}
+                            </td>
+                            <td className="px-4 py-3">{row.status}</td>
+                            <td className="px-4 py-3 text-right">
+                              {row.hasRecord
+                                ? formatSummaryReportCurrency(row.totalDue)
+                                : "—"}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {row.hasRecord
+                                ? formatSummaryReportCurrency(row.collected)
+                                : "—"}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {row.hasRecord
+                                ? formatSummaryReportCurrency(row.balance)
+                                : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                        {displayedDetailRows.length === 0 && (
+                          <tr>
+                            <td
+                              colSpan={7}
+                              className="px-4 py-8 text-center text-zinc-500"
+                            >
+                              No matching resident records for this report
+                              month.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="border-t border-zinc-100 px-5 py-3 text-xs text-zinc-500">
+                    Values follow the generated report's selected month and
+                    year. Choose another period and click Generate Report to
+                    update the figures and breakdown.
+                  </p>
+                </div>
+              )}
             </section>
 
             <section className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-zinc-200">

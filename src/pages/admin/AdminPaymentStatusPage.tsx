@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { printAdminTable } from "../../lib/printAdminTable";
 import { Fragment, useEffect, useMemo, useState } from "react";
@@ -396,6 +397,12 @@ const toPaymentRow = (user: ResidentUser): PaymentRow => {
 };
 
 export default function AdminPaymentStatusPage() {
+  const [searchParams] = useSearchParams();
+  const dashboardStatus = searchParams.get("status");
+  const initialStatus: StatusFilter =
+    dashboardStatus === "Paid" || dashboardStatus === "Not Paid"
+      ? dashboardStatus
+      : ALL_FILTER;
   const queryClient = useQueryClient();
   const cacheKey = ["admin", "payment-status", getCurrentMonthKey()];
 
@@ -416,7 +423,11 @@ export default function AdminPaymentStatusPage() {
   const [query, setQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [selectedStatus, setSelectedStatus] =
-    useState<StatusFilter>(ALL_FILTER);
+    useState<StatusFilter>(initialStatus);
+  useEffect(() => {
+    setSelectedStatus(initialStatus);
+    setCurrentPage(1);
+  }, [initialStatus]);
   const [selectedResidency, setSelectedResidency] =
     useState<ResidencyFilter>(ALL_FILTER);
   const [currentPage, setCurrentPage] = useState(1);
