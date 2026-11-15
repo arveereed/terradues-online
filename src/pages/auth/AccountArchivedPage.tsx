@@ -30,7 +30,7 @@ export default function AccountArchivedPage() {
 
               <div>
                 <p className="text-sm font-bold text-amber-950">
-                  5 years archive period
+                  1 year archive period
                 </p>
 
                 <p className="mt-1 text-sm font-medium leading-6 text-amber-900/80">

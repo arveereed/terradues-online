@@ -170,32 +170,20 @@ export default async function handler(
       (documentSnapshot) => {
         const resident = documentSnapshot.data();
 
-        const deletionTimestamp = resident.scheduledDeletionAt;
-
-        if (!deletionTimestamp) {
-          return false;
-        }
-
-        if (typeof deletionTimestamp.toMillis !== "function") {
-          return false;
-        }
-
-        // Honor five calendar years for existing archives too, even if
-        // scheduledDeletionAt was created under the old 30-day policy.
+        // The archive date is authoritative for both new and existing records.
+        // Older scheduledDeletionAt values may still reflect a one-year policy.
         const archivedTimestamp = resident.archivedAt;
         if (
           !archivedTimestamp ||
           typeof archivedTimestamp.toDate !== "function"
         ) {
-          return false; // Fail closed: never purge without an archive date.
+          return false; // Never delete a record without a valid archive date.
         }
-        const fiveYearDate = archivedTimestamp.toDate();
-        fiveYearDate.setUTCFullYear(fiveYearDate.getUTCFullYear() + 5);
-        const effectiveDeletionAt = Math.max(
-          deletionTimestamp.toMillis(),
-          fiveYearDate.getTime(),
-        );
-        return effectiveDeletionAt <= now.toMillis();
+        const archiveDate = archivedTimestamp.toDate();
+        if (Number.isNaN(archiveDate.getTime())) return false;
+        const deletionDate = new Date(archiveDate);
+        deletionDate.setUTCFullYear(deletionDate.getUTCFullYear() + 1);
+        return deletionDate.getTime() <= now.toMillis();
       },
     );
 

@@ -1,14 +1,24 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   collection,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   updateDoc,
 } from "firebase/firestore";
-import { Archive, ClipboardList, ShieldAlert, X, XCircle } from "lucide-react";
+import {
+  Archive,
+  ArrowLeft,
+  ClipboardList,
+  RefreshCw,
+  ShieldAlert,
+  X,
+  XCircle,
+} from "lucide-react";
 import { db } from "../../lib/firebase/firebase";
 import { archiveResident } from "../../features/auth/services/auth.service";
 
@@ -23,6 +33,7 @@ type ClosureRequest = {
 };
 
 export default function AdminAccountClosureRequestsPage() {
+  const navigate = useNavigate();
   const [requests, setRequests] = useState<ClosureRequest[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [selected, setSelected] = useState<{
@@ -32,6 +43,7 @@ export default function AdminAccountClosureRequestsPage() {
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     return onSnapshot(
@@ -53,6 +65,29 @@ export default function AdminAccountClosureRequestsPage() {
       },
     );
   }, []);
+
+  async function refreshRequests() {
+    if (refreshing) return;
+    setRefreshing(true);
+    setError("");
+    try {
+      const snapshot = await getDocs(
+        query(
+          collection(db, "accountDeletionRequests"),
+          orderBy("createdAt", "desc"),
+        ),
+      );
+      setRequests(
+        snapshot.docs.map(
+          (entry) => ({ id: entry.id, ...entry.data() }) as ClosureRequest,
+        ),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to refresh requests.");
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   function openDecision(item: ClosureRequest, action: "approve" | "deny") {
     if (busy || item.status !== "pending") return;
@@ -87,6 +122,14 @@ export default function AdminAccountClosureRequestsPage() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
+          <button
+            type="button"
+            onClick={() => navigate("/admin/users/archive")}
+            className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-zinc-600 transition-colors hover:text-zinc-950"
+          >
+            <ArrowLeft size={16} />
+            Back to Resident Archive
+          </button>
           <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
             <ClipboardList size={14} /> Resident management
           </div>
@@ -94,10 +137,24 @@ export default function AdminAccountClosureRequestsPage() {
             Account Closure Requests
           </h1>
           <p className="mt-1 text-sm text-zinc-500">
-            Review resident requests before archiving their records for five
-            years.
+            Review resident requests before archiving their records for one
+            year.
           </p>
         </div>
+        <button
+          type="button"
+          onClick={refreshRequests}
+          disabled={refreshing}
+          aria-label={
+            refreshing
+              ? "Refreshing account closure requests"
+              : "Refresh account closure requests"
+          }
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+          {refreshing ? "Refreshing..." : "Refresh"}
+        </button>
       </header>
       {error && (
         <p
@@ -262,7 +319,7 @@ export default function AdminAccountClosureRequestsPage() {
             <div className="space-y-4 p-6">
               <p className="text-sm leading-relaxed text-zinc-600">
                 {selected.action === "approve"
-                  ? "This will archive the resident record under the five-year retention policy. Check that you selected the correct resident before proceeding."
+                  ? "This will archive the resident record under the one-year retention policy. Check that you selected the correct resident before proceeding."
                   : "The resident's account will remain active. Provide a reason for your decision."}
               </p>
               {selected.action === "deny" && (

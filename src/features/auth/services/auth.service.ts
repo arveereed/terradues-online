@@ -159,7 +159,7 @@ export const archiveResident = async (residentId: string) => {
 
   const archivedAt = Timestamp.now();
   const deletionDate = archivedAt.toDate();
-  deletionDate.setUTCFullYear(deletionDate.getUTCFullYear() + 5);
+  deletionDate.setUTCFullYear(deletionDate.getUTCFullYear() + 1);
   const scheduledDeletionAt = Timestamp.fromDate(deletionDate);
 
   await updateDoc(userRef, {
@@ -1399,10 +1399,13 @@ export const resubmitDeniedRegistration = async (
   }
 
   // Restrict corrections to the seven days following the admin's denial.
-  const deniedAt = userData.deniedAt as unknown as {
-    toMillis?: () => number;
-    seconds?: number;
-  } | null | undefined;
+  const deniedAt = userData.deniedAt as unknown as
+    | {
+        toMillis?: () => number;
+        seconds?: number;
+      }
+    | null
+    | undefined;
   const deniedMs =
     deniedAt?.toMillis?.() ??
     (typeof deniedAt?.seconds === "number" ? deniedAt.seconds * 1000 : NaN);

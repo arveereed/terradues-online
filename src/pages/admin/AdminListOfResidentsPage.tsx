@@ -692,7 +692,7 @@ export default function AdminListOfResidentsPage() {
                             type="button"
                             onClick={() => handleArchiveResident(resident)}
                             className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100"
-                            title="Archive resident for 5 years"
+                            title="Archive resident for 1 year"
                           >
                             <Archive size={14} />
                             Archive
@@ -830,7 +830,7 @@ function ArchiveResidentModal({
                   You can still restore this resident
                 </p>
                 <p className="mt-1 text-xs font-medium leading-5 text-amber-800">
-                  The resident stays in the archive for 5 years. After that, the
+                  The resident stays in the archive for 1 year. After that, the
                   resident is permanently deleted if not restored.
                 </p>
               </div>

@@ -717,9 +717,9 @@ export default function SecuritySection() {
             </div>
             <p className="mt-2 text-sm text-zinc-600">
               Your request will be reviewed by an administrator. If approved,
-              your resident record will be archived under the five-year
-              retention policy. This action does not immediately delete your
-              Clerk account.
+              your resident record will be archived under the one-year retention
+              policy. This action does not immediately delete your Clerk
+              account.
             </p>
             <label
               htmlFor="deletion-reason"

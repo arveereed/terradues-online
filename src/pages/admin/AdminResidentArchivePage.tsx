@@ -43,12 +43,11 @@ const fullName = (resident: ArchivedResident) =>
     .join(" ");
 
 const getDeletionDate = (resident: ArchivedResident): Date | null => {
-  const scheduled = timestampToDate(resident.scheduledDeletionAt);
   const archived = timestampToDate(resident.archivedAt);
-  if (!archived) return scheduled;
-  const fiveYearDate = new Date(archived);
-  fiveYearDate.setUTCFullYear(fiveYearDate.getUTCFullYear() + 5);
-  return scheduled && scheduled > fiveYearDate ? scheduled : fiveYearDate;
+  if (!archived) return null;
+  const oneYearDate = new Date(archived);
+  oneYearDate.setUTCFullYear(oneYearDate.getUTCFullYear() + 1);
+  return oneYearDate;
 };
 
 const formatTimeRemaining = (deletionDate: Date | null): string => {
@@ -190,7 +189,7 @@ export default function AdminResidentArchivePage() {
           </h1>
 
           <p className="mt-1 text-sm font-medium text-zinc-500">
-            Deleted residents stay here for 5 years before automatic permanent
+            Deleted residents stay here for 1 year before automatic permanent
             deletion.
           </p>
         </div>
@@ -250,7 +249,7 @@ export default function AdminResidentArchivePage() {
             <p className="mt-3 font-semibold text-zinc-900">Archive is empty</p>
 
             <p className="mt-1 text-sm text-zinc-500">
-              Residents you delete will appear here for 5 years.
+              Residents you delete will appear here for 1 year.
             </p>
           </div>
         ) : (

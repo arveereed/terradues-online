@@ -62,7 +62,7 @@ type ApprovalMetadata = {
   archivedAt?: FirestoreTimestamp;
 
   /*
-   * Set to 30 days after archivedAt.
+   * Set to one calendar year after archivedAt.
    * The server cleanup uses this timestamp to determine
    * when the account can be permanently deleted.
    */
