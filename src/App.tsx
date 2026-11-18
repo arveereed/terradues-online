@@ -28,6 +28,7 @@ import SettingsPage from "./pages/user/SettingsPage";
 
 // Admin pages
 import AdminHomePage from "./pages/admin/AdminHomePage";
+import AdminNotificationsPage from "./pages/admin/AdminNotificationsPage";
 import AdminListOfResidentsPage from "./pages/admin/AdminListOfResidentsPage";
 import AdminRegisterResidentPage from "./pages/admin/AdminRegisterResidentPage";
 import AdminPaymentStatusPage from "./pages/admin/AdminPaymentStatusPage";
@@ -190,6 +191,7 @@ function App() {
           <Route path="payments" element={<AdminPaymentStatusPage />} />
 
           <Route path="payment-history" element={<AdminPaymentHistoryPage />} />
+          <Route path="notifications" element={<AdminNotificationsPage />} />
 
           <Route path="summary-report" element={<AdminSummaryReportPage />} />
         </Route>

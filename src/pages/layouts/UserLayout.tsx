@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Outlet } from "react-router-dom";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { db } from "../../lib/firebase/firebase";
 import {
   Menu,
   X,
@@ -31,6 +33,34 @@ export default function UserLayout() {
   const { data } = useFirestoreUser(clerkUser?.id);
 
   const [open, setOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Same residentId and unread field used by the resident Notifications page.
+  useEffect(() => {
+    const residentId = data?.id;
+    if (!residentId) {
+      setUnreadCount(0);
+      return;
+    }
+
+    const notificationsQuery = query(
+      collection(db, "notifications"),
+      where("residentId", "==", residentId),
+    );
+
+    return onSnapshot(
+      notificationsQuery,
+      (snapshot) => {
+        setUnreadCount(
+          snapshot.docs.filter((item) => item.data().unread === true).length,
+        );
+      },
+      (error) => {
+        console.error("Unable to subscribe to resident notifications:", error);
+        setUnreadCount(0);
+      },
+    );
+  }, [data?.id]);
 
   // Supports both normal registration and admin-created residents.
   const userName =
@@ -168,7 +198,15 @@ export default function UserLayout() {
                   <span className="grid size-9 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
                     <Icon size={18} />
                   </span>
-                  {item.label}
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                  {item.to === "/app/notification" && unreadCount > 0 && (
+                    <span
+                      className="ml-auto inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-rose-600 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
+                      aria-label={`${unreadCount} unread notifications`}
+                    >
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -228,7 +266,17 @@ export default function UserLayout() {
                     <span className="grid size-9 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
                       <Icon size={18} />
                     </span>
-                    {item.label}
+                    <span className="min-w-0 flex-1 truncate">
+                      {item.label}
+                    </span>
+                    {item.to === "/app/notification" && unreadCount > 0 && (
+                      <span
+                        className="ml-auto inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-rose-600 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
+                        aria-label={`${unreadCount} unread notifications`}
+                      >
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
                   </Link>
                 );
               })}

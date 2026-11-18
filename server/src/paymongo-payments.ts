@@ -463,6 +463,26 @@ export const paymongoWebhookHandler: RequestHandler = async (req, res) => {
         createdAt: paidAt,
       });
 
+      // Admin-facing receipt, created atomically with the successful payment.
+      // Deterministic ID and existing webhook idempotency prevent duplicates.
+      const adminNotificationId = `payment-${transactionId}`;
+      tx.set(db.collection("adminNotifications").doc(adminNotificationId), {
+        id: adminNotificationId,
+        type: "payment_success",
+        title: "Resident Payment Received",
+        residentId,
+        residentName: [clean(resident.firstName || resident.first_name), clean(resident.lastName || resident.last_name)].filter(Boolean).join(" ") || clean(resident.fullName || resident.name) || "Resident",
+        transactionId,
+        monthKey: clean(paymentTx.monthKey),
+        monthLabel,
+        amount: paidAmount,
+        paymentMethod,
+        paymentDate: paidDate,
+        message: `A resident successfully paid ₱${paidAmount.toLocaleString("en-PH", { minimumFractionDigits: 2 })} for ${monthLabel} using ${paymentMethod}.`,
+        unread: true,
+        createdAt: paidAt,
+      });
+
       tx.update(paymentRef, {
         status: "paid",
         paidAt,

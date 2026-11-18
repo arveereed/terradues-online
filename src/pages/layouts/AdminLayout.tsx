@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import {
   BarChart3,
+  Bell,
   ChevronRight,
   CreditCard,
   FileChartColumn,
@@ -13,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { useClerk } from "@clerk/clerk-react";
+import { useAdminUnreadCount } from "../admin/useAdminNotifications";
 
 type NavItem = {
   label: string;
@@ -48,6 +50,11 @@ const navItems: NavItem[] = [
     icon: BarChart3,
   },
   {
+    label: "Notifications",
+    to: "/admin/notifications",
+    icon: Bell,
+  },
+  {
     label: "Summary Report",
     to: "/admin/summary-report",
     icon: FileChartColumn,
@@ -59,6 +66,7 @@ export default function AdminLayout() {
   const [isLoading, setIsLoading] = useState(false);
 
   const userName = "Admin";
+  const unreadCount = useAdminUnreadCount();
   const location = useLocation();
   const { signOut } = useClerk();
 
@@ -235,10 +243,21 @@ export default function AdminLayout() {
 
                   <span className="truncate">{item.label}</span>
 
+                  {item.to === "/admin/notifications" && unreadCount > 0 && (
+                    <span
+                      className="ml-auto inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-rose-600 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
+                      aria-label={`${unreadCount} unread notifications`}
+                    >
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+
                   <span
-                    className={`ml-auto grid size-8 shrink-0 place-items-center rounded-xl transition ${
-                      active ? "text-emerald-700" : "text-zinc-400"
-                    }`}
+                    className={`grid size-8 shrink-0 place-items-center rounded-xl transition ${
+                      item.to === "/admin/notifications" && unreadCount > 0
+                        ? ""
+                        : "ml-auto"
+                    } ${active ? "text-emerald-700" : "text-zinc-400"}`}
                   >
                     <ChevronRight size={16} />
                   </span>
@@ -317,6 +336,15 @@ export default function AdminLayout() {
                     </span>
 
                     <span className="truncate">{item.label}</span>
+
+                    {item.to === "/admin/notifications" && unreadCount > 0 && (
+                      <span
+                        className="ml-auto inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-rose-600 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
+                        aria-label={`${unreadCount} unread notifications`}
+                      >
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
